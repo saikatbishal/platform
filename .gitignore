@@ -1,0 +1,27 @@
+# secrets — never commit
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# node
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# generated assets (rebuild with: npm run assets)
+public/data/stations.json
+public/maps/
+scripts/.cache/
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# logs
+npm-debug.log*
+*.log
