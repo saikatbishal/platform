@@ -30,7 +30,13 @@ export interface MapData {
 interface RailProps { scalerank?: number }
 interface StateProps { st_nm?: string }
 
-async function getJson<T>(url: string): Promise<T> {
+/**
+ * BASE_URL is "/platform/" in production (this app is served at
+ * saikatbishal.com/platform), so a hardcoded "/maps/..." fetch would miss
+ * the prefix and hit the portfolio site's own routes instead.
+ */
+async function getJson<T>(path: string): Promise<T> {
+  const url = `${import.meta.env.BASE_URL}${path}`
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${url} — ${res.status}. Run \`npm run assets\`.`)
   return (await res.json()) as T
@@ -58,11 +64,11 @@ export function useMapData(): { data: MapData | null; error: string | null } {
 
     async function load() {
       const [statesTopo, railTopo, cities, stations, wire] = await Promise.all([
-        getJson<Topology>('/maps/states.topo.json'),
-        getJson<Topology>('/maps/rail.topo.json'),
-        getJson<City[]>('/maps/cities.json'),
-        getJson<Station[]>('/data/stations.json'),
-        getJson<RailGraphWire>('/maps/railgraph.json'),
+        getJson<Topology>('maps/states.topo.json'),
+        getJson<Topology>('maps/rail.topo.json'),
+        getJson<City[]>('maps/cities.json'),
+        getJson<Station[]>('data/stations.json'),
+        getJson<RailGraphWire>('maps/railgraph.json'),
       ])
       if (cancelled) return
 
@@ -133,7 +139,7 @@ export function useMapData(): { data: MapData | null; error: string | null } {
 export async function loadDistricts(
   projectionSource: FeatureCollection<Geometry, StateProps>,
 ): Promise<string[]> {
-  const topo = await getJson<Topology>('/maps/districts.topo.json')
+  const topo = await getJson<Topology>('maps/districts.topo.json')
   const fc = feature(topo, firstObject(topo)) as FeatureCollection<Geometry>
   const path = geoPath(createIndiaProjection(MAP_WIDTH, MAP_HEIGHT, projectionSource))
   const out: string[] = []
