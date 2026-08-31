@@ -39,6 +39,13 @@
   --land-visited:  #143355;   /* a state you have travelled through */
   --dot:           #7E93A6;   /* the 8,696-station field, drawn on canvas */
 
+  /* the sea. This is the sky-panel #98C5C8 from the reference photos finally
+     getting a job: darkened toward the coach navy for the water itself, and
+     half-strength for everything drawn ON the water (graticule, waterlines,
+     wave glyphs, sea names). Decorative, so contrast rules don't apply. */
+  --sea:           #081D2B;
+  --sea-ink:       #4D7A8C;
+
   /* map semantics — derived, so intent is in one place */
   --route-taken:   var(--accent);
   --route-planned: var(--oxide);
@@ -70,6 +77,9 @@
     --land-visited:#F2DFB8;
     --dot:         #8C8375;
 
+    --sea:         #E2ECEA;   /* a pale wash of the sky panel on warm paper */
+    --sea-ink:     #5F8B92;
+
     --cream:       #8A6420;   /* cream can't survive on white; becomes bronze */
     --vermillion:  #B4302A;
     --oxide:       #6B3524;
@@ -98,6 +108,8 @@
   --land:        #EDE8DD;
   --land-visited:#F2DFB8;
   --dot:         #8C8375;
+  --sea:         #E2ECEA;
+  --sea-ink:     #5F8B92;
 }
 
 html{ color-scheme: dark light; }
