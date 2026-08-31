@@ -2,13 +2,30 @@ import { useEffect, useState } from 'react'
 import { feature } from 'topojson-client'
 import type { Topology, GeometryCollection } from 'topojson-specification'
 import type { FeatureCollection, Geometry } from 'geojson'
-import { geoPath } from 'd3-geo'
+import { geoPath, geoGraticule } from 'd3-geo'
 import { createIndiaProjection, MAP_WIDTH, MAP_HEIGHT } from '@/lib/projection.ts'
 import { parseRailGraph, type RailGraph, type RailGraphWire } from './route.ts'
 import type { Station } from '@/types/index.ts'
 
 /** A city label from public/maps/cities.json, pre-sorted by importance. */
 interface City { name: string; lon: number; lat: number; pop: number; rank: number; state: string }
+
+/**
+ * The sea. Hand-placed positions over open water — far enough from the coast
+ * to clear it, far enough from Sri Lanka and the Andamans not to sit on land
+ * the map doesn't draw. Checked against the coastline, not guessed.
+ */
+const SEA_NAMES = [
+  { name: 'Arabian Sea', lon: 64.5, lat: 15 },
+  { name: 'Bay of Bengal', lon: 88, lat: 13.5 },
+  { name: 'Indian Ocean', lon: 77.5, lat: 3 },
+] as const
+
+const WAVE_POINTS: ReadonlyArray<readonly [number, number]> = [
+  [62, 20], [64, 16.5], [66.5, 12], [62.5, 9], [68, 7.5], [64, 5],
+  [85.5, 17], [88.5, 14.5], [91.5, 11.5], [86, 10], [89, 7],
+  [72, 2.5], [78, 1.5], [84, 3],
+]
 
 /** Everything the map draws, already projected into map space. */
 export interface MapData {
@@ -25,6 +42,13 @@ export interface MapData {
   stations: Station[]
   byCode: Map<string, Station & { x: number; y: number }>
   graph: RailGraph
+  /** Everything drawn on the water, so the country doesn't float in a void. */
+  sea: {
+    /** One path: 5° lat/lon lines. The opaque land hides it inland. */
+    graticule: string
+    labels: Array<{ name: string; x: number; y: number }>
+    waves: Array<{ x: number; y: number }>
+  }
 }
 
 interface RailProps { scalerank?: number }
@@ -110,6 +134,20 @@ export function useMapData(): { data: MapData | null; error: string | null } {
         byCode.set(s.code, { ...s, x: p[0], y: p[1] })
       }
 
+      const graticule = round(
+        path(geoGraticule().step([5, 5]).extent([[55, -10], [110, 45]])()),
+      )
+      const seaLabels: MapData['sea']['labels'] = []
+      for (const l of SEA_NAMES) {
+        const p = projection([l.lon, l.lat])
+        if (p) seaLabels.push({ name: l.name, x: p[0], y: p[1] })
+      }
+      const waves: MapData['sea']['waves'] = []
+      for (const [lon, lat] of WAVE_POINTS) {
+        const p = projection([lon, lat])
+        if (p) waves.push({ x: p[0], y: p[1] })
+      }
+
       setData({
         states: statePaths,
         districts: null,
@@ -119,6 +157,7 @@ export function useMapData(): { data: MapData | null; error: string | null } {
         stations,
         byCode,
         graph: parseRailGraph(wire),
+        sea: { graticule, labels: seaLabels, waves },
       })
     }
 

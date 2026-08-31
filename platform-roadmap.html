@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Platform, phase by phase — design, map, logging, backend, rewards, devops, polish, ideas — with three livery colour combinations previewed on miniature maps.">
+<meta name="color-scheme" content="dark light">
+<style>
+  *{margin:0;padding:0}
+  img{max-width:100%}
+  [hidden]{display:none!important}
+</style>
+<title>Platform Roadmap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* Platform's own token system — the roadmap wears the product's livery. */
+:root{
+  --ground:#0A1C33; --surface:#0D2242; --surface-2:#153754;
+  --line:#1F4568; --line-strong:#2E5C82;
+  --ink:#E9F0F6; --ink-soft:#A2B7C9; --ink-faint:#7791A8;
+  --accent:#EAB143; --accent-wash:#332818; --cream:#EECB9A;
+  --vermillion:#E85C50; --steel:#A3988F;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 14px 34px -20px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --ground:#F4F1EA; --surface:#FCFAF6; --surface-2:#EAE5DA;
+    --line:#D8D1C3; --line-strong:#B9B0A0;
+    --ink:#12283F; --ink-soft:#3F5A73; --ink-faint:#6B8299;
+    --accent:#8A5A0F; --accent-wash:#F5E7CC; --cream:#8A6420;
+    --vermillion:#B4302A; --steel:#6E645A;
+    --shadow:0 1px 2px rgba(18,40,63,.06), 0 10px 28px -18px rgba(18,40,63,.22);
+  }
+}
+:root[data-theme="light"]{
+  --ground:#F4F1EA; --surface:#FCFAF6; --surface-2:#EAE5DA;
+  --line:#D8D1C3; --line-strong:#B9B0A0;
+  --ink:#12283F; --ink-soft:#3F5A73; --ink-faint:#6B8299;
+  --accent:#8A5A0F; --accent-wash:#F5E7CC; --cream:#8A6420;
+  --vermillion:#B4302A; --steel:#6E645A;
+  --shadow:0 1px 2px rgba(18,40,63,.06), 0 10px 28px -18px rgba(18,40,63,.22);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:Archivo,"Helvetica Neue",Arial,sans-serif;
+  font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:960px;margin:0 auto;padding:0 24px 110px}
+.measure{max-width:64ch}
+.mono,.val{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+
+h1{font-size:clamp(2.3rem,6.5vw,3.9rem);font-weight:800;letter-spacing:-.03em;line-height:.98;margin:0 0 18px;text-wrap:balance}
+h2{font-size:clamp(1.45rem,3.2vw,2.05rem);font-weight:800;letter-spacing:-.022em;line-height:1.08;margin:0;text-wrap:balance}
+h3{font-size:1.12rem;font-weight:600;letter-spacing:-.012em;margin:0 0 6px;text-wrap:balance}
+p{margin:0 0 1em}
+strong{font-weight:600}
+a{color:var(--accent)}
+code,.code{font-family:"IBM Plex Mono",monospace;font-size:.86em;color:var(--cream);
+  background:var(--surface-2);padding:1px 6px;border-radius:2px}
+
+.plate{display:inline-flex;border:2px solid var(--line-strong);border-radius:3px;overflow:hidden;margin-bottom:26px}
+.plate span{padding:6px 12px;font-size:.7rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.plate .a{background:var(--surface);color:var(--accent)}
+.plate .b{background:var(--surface);color:var(--ink-soft);border-left:1px solid var(--line)}
+header.top{padding:62px 0 6px}
+.lede{font-size:1.16rem;line-height:1.55;color:var(--ink-soft);max-width:60ch}
+.lede strong{color:var(--ink)}
+.rulebar{margin-top:26px;padding:13px 17px;background:var(--accent-wash);border-radius:3px;
+  font-size:.98rem;max-width:64ch}
+.rulebar b{color:var(--accent)}
+
+nav.toc{position:sticky;top:0;z-index:20;background:var(--ground);border-bottom:1px solid var(--line);margin-top:44px}
+nav.toc ul{display:flex;gap:2px;list-style:none;margin:0;padding:0;overflow-x:auto;scrollbar-width:none}
+nav.toc ul::-webkit-scrollbar{display:none}
+nav.toc a{display:block;padding:12px 12px;font-size:.72rem;font-weight:600;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--ink-soft);text-decoration:none;white-space:nowrap;
+  border-bottom:2px solid transparent}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-bottom-color:var(--accent)}
+
+section{padding:70px 0 0;scroll-margin-top:56px}
+.phead{display:flex;flex-direction:column;gap:10px;padding-bottom:18px;margin-bottom:30px;border-bottom:2px solid var(--line-strong)}
+.pk{font-family:"IBM Plex Mono",monospace;font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;color:var(--accent)}
+.psub{color:var(--ink-soft);max-width:62ch;font-size:1rem}
+
+ol.work{list-style:none;margin:0;padding:0;counter-reset:w;display:flex;flex-direction:column;gap:0}
+ol.work>li{counter-increment:w;display:grid;grid-template-columns:40px minmax(0,1fr);gap:0 16px;
+  padding:15px 0;border-bottom:1px solid var(--line)}
+ol.work>li:last-child{border-bottom:0}
+ol.work>li::before{content:counter(w,decimal-leading-zero);font-family:"IBM Plex Mono",monospace;
+  font-size:.78rem;color:var(--ink-faint);padding-top:3px}
+ol.work>li>div{min-width:0;max-width:66ch}
+ol.work p{margin:6px 0 0;font-size:.93rem;color:var(--ink-soft)}
+.tag{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.1em;
+  text-transform:uppercase;padding:2px 8px;border-radius:2px;margin-left:8px;vertical-align:2px}
+.tag.ux{background:var(--accent-wash);color:var(--accent)}
+.tag.be{background:var(--surface-2);color:var(--ink-soft)}
+.tag.ops{background:var(--surface-2);color:var(--steel)}
+
+.eli{margin-top:10px;padding:12px 15px;background:var(--surface);border:1px solid var(--line);
+  border-left:2px solid var(--accent);border-radius:3px;font-size:.92rem;line-height:1.55;color:var(--ink-soft)}
+.eli b{display:block;font-size:.62rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:4px}
+
+.donegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:3px;overflow:hidden}
+.done{background:var(--surface);padding:15px 17px;font-size:.92rem;color:var(--ink-soft)}
+.done b{display:block;color:var(--ink);font-weight:600;margin-bottom:3px;font-size:.95rem}
+
+.palgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px}
+.pal{background:var(--surface);border:1px solid var(--line);border-radius:4px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.pal svg{display:block;width:100%;height:auto}
+.pal .pb{padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.pal h3{margin:0}
+.pal .sub{font-size:.85rem;color:var(--ink-faint);margin-top:-6px}
+.sw{display:flex;gap:5px}
+.sw span{flex:1;height:22px;border-radius:2px;border:1px solid rgba(128,128,128,.3)}
+.pal table{border-collapse:collapse;width:100%;font-size:.8rem}
+.pal td{padding:4px 0;border-bottom:1px solid var(--line);color:var(--ink-soft)}
+.pal td:last-child{text-align:right;font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--cream)}
+.pal tr:last-child td{border-bottom:0}
+.palnote{font-size:.9rem;color:var(--ink-soft);max-width:64ch;margin-top:22px}
+.palnote b{color:var(--ink)}
+
+footer{margin-top:84px;padding-top:24px;border-top:1px solid var(--line);font-size:.88rem;color:var(--ink-faint);max-width:64ch}
+
+@media (max-width:720px){
+  body{font-size:16px}
+  .wrap{padding:0 18px 84px}
+  ol.work>li{grid-template-columns:30px minmax(0,1fr);gap:0 12px}
+  section{scroll-margin-top:48px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="plate"><span class="a">Platform</span><span class="b">Roadmap · 30 Aug 2026</span></div>
+  <h1>Everything the app<br>could become</h1>
+  <p class="lede">Every piece of work, phase by phase — backend, frontend, devops, and the ideas
+  shelf — with <strong>UI and UX weighted heaviest</strong>, because craft is the whole bet.
+  The six-week plan says when; this says exactly what.</p>
+  <p class="rulebar"><b>The one rule:</b> design before code, ship before polish, polish before
+  adding. Phases 1–3 are v1. Ideas never jump the queue — they land in Phase 8 and wait.</p>
+</header>
+
+<nav class="toc" aria-label="Phases">
+  <ul>
+    <li><a href="#p0">Done</a></li>
+    <li><a href="#p1">1 · Design</a></li>
+    <li><a href="#p2">2 · Map</a></li>
+    <li><a href="#p3">3 · Logging</a></li>
+    <li><a href="#p4">4 · Backend</a></li>
+    <li><a href="#p5">5 · Rewards</a></li>
+    <li><a href="#p6">6 · DevOps</a></li>
+    <li><a href="#p7">7 · Polish</a></li>
+    <li><a href="#p8">8 · Ideas</a></li>
+    <li><a href="#colours">Colours</a></li>
+  </ul>
+</nav>
+
+<section id="p0">
+  <div class="phead"><span class="pk">Already standing</span><h2>Done, and verified</h2></div>
+  <div class="donegrid">
+    <div class="done"><b>Scaffold</b>Vite 8 · React 19 · TS 7 · Tailwind 4. Builds clean, 81 kB gzipped.</div>
+    <div class="done"><b>Data</b>8,696 stations, every one with a state derived from its coordinates.</div>
+    <div class="done"><b>Map</b>Hand-drawn India, pan/pinch/momentum at 60 fps, level-of-detail, label collision.</div>
+    <div class="done"><b>Routing</b>Journeys follow the real rail network — 70 KB graph, shortest-path in the browser, 0% over water.</div>
+    <div class="done"><b>Palette</b>Sampled from rail photography, both themes, every pairing contrast-checked.</div>
+    <div class="done"><b>Known debts</b>Accent wasted on the badge · reward invisible in greyscale · no typeface · tiles reflow · 40px targets · half-empty phone screen.</div>
+  </div>
+</section>
+
+<section id="p1">
+  <div class="phead"><span class="pk">Phase 1 — current</span><h2>The design pass</h2>
+  <p class="psub">The app currently wears the operating system’s clothes. Nothing below this phase starts first.</p></div>
+  <ol class="work">
+    <li><div><h3>Load the chosen typefaces <span class="tag ux">UX</span></h3>
+      <p>Archivo for interface and display, IBM Plex Mono for figures and station codes, IBM Plex
+      Sans Devanagari for the bilingual board. Self-host via <code>@fontsource</code> so the files
+      ride the same cache as everything else, then fill the three empty
+      <code>--font-*</code> slots. The single highest-leverage change on this page.</p></div></li>
+    <li><div><h3>Stop the font swap from jumping <span class="tag ux">UX</span></h3>
+      <p>Set <code>size-adjust</code> on the fallback stack.</p>
+      <div class="eli"><b>Explained simply</b>The browser shows a system font for a moment before
+      your font finishes downloading. If the two take up different amounts of space, every line
+      shifts when the swap happens. <code>size-adjust</code> stretches the temporary font to occupy
+      the same space, so the swap is invisible.</div></div></li>
+    <li><div><h3>A real type scale <span class="tag ux">UX</span></h3>
+      <p>One ratio, five or six sizes as tokens, line-height that varies with size — tight for
+      display, 1.5+ for body. Kill the 9.6px label while you are in there.</p></div></li>
+    <li><div><h3>The two Figma screens the plan is owed <span class="tag ux">UX</span></h3>
+      <p>The Map (desktop and 390px — decide the chrome, where stats live, what first-open shows)
+      and Add a Journey (the fifteen-second flow, drawn before built). Twenty reference
+      screenshots first: map UIs, transit design, collection UIs, passport aesthetics.</p></div></li>
+    <li><div><h3>Fix the badge, free the yellow <span class="tag ux">UX</span></h3>
+      <p>Ink on surface, hairline border, inner radius = outer − border. The accent goes back to
+      the route and to nothing else — the squint test’s number-one finding.</p></div></li>
+    <li><div><h3>The station-board component <span class="tag ux">UX</span></h3>
+      <p>Yellow field, navy text, Devanagari above Latin. Build once; reuse as station headers and
+      the passport card. It is the app’s logo without designing a logo.</p></div></li>
+    <li><div><h3>Icons that exist <span class="tag ux">UX</span></h3>
+      <p>The manifest names 192/512/maskable icons with no files behind them. Draw the family from
+      the board or the route mark, matching the existing favicon.</p></div></li>
+    <li><div><h3>Make the reward survive greyscale <span class="tag ux">UX</span></h3>
+      <p>Widen the lightness gap between land and visited land and add a border cue, so “states
+      unlocked” reads for colour-blind users and in daylight.</p></div></li>
+  </ol>
+</section>
+
+<section id="p2">
+  <div class="phead"><span class="pk">Phase 2</span><h2>The map experience</h2>
+  <p class="psub">The centrepiece. Most of the UI/UX hours in the whole project live here.</p></div>
+  <ol class="work">
+    <li><div><h3>One-handed zoom <span class="tag ux">UX</span></h3>
+      <p>Double-tap-and-drag (the Google Maps gesture): thumb slides down to zoom in, up to zoom
+      out. Pinch already works; this is the standing-on-a-platform gesture.</p></div></li>
+    <li><div><h3>Rubber-band the edges <span class="tag ux">UX</span></h3>
+      <p>A hard fling should never strand the user in empty sea. Let the clamp stretch slightly,
+      then settle back — an eased boundary instead of a wall.</p></div></li>
+    <li><div><h3>Fly-to <span class="tag ux">UX</span></h3>
+      <p>Animate x/y/zoom along an eased path with a slight zoom-out-then-in arc — the parabolic
+      camera move every good map uses, because it keeps context during the jump.</p></div></li>
+    <li><div><h3>First-open framing <span class="tag ux">UX</span></h3>
+      <p>On a phone, fit to the journeys’ bounding box, not the whole country — which also fixes
+      the half-empty-screen finding. Whole-country stays one “Fit” tap away.</p></div></li>
+    <li><div><h3>Hit-testing for taps <span class="tag ux">UX</span></h3>
+      <p>Nearest station within 24 screen pixels, biased toward visited ones.</p>
+      <div class="eli"><b>Explained simply</b>The map is a picture, not buttons — when someone
+      taps, you must work out which dot they meant. Take the tap position, find the closest
+      station in screen space, and treat a near-miss as a hit, because thumbs are imprecise.</div></div></li>
+    <li><div><h3>Station and journey cards <span class="tag ux">UX</span></h3>
+      <p>Tap a station: board-style header, code, zone, times passed through. Tap a route: date,
+      train, distance “via N stops”, the note.</p></div></li>
+    <li><div><h3>The accessible twin <span class="tag ux">UX</span></h3>
+      <p>A text list of journeys as the map’s screen-reader fallback — and honestly useful in its
+      own right as the journey log.</p></div></li>
+    <li><div><h3>Wire the lazy district fetch <span class="tag be">FE</span></h3>
+      <p>The hook and the tier flag exist; the actual fetch at zoom ≥ 4 is not connected yet.</p></div></li>
+    <li><div><h3>Your labels beat generic labels <span class="tag ux">UX</span></h3>
+      <p>At state zoom and below, visited-station labels outrank city labels in the collision
+      pass. Your places matter more than default places.</p></div></li>
+    <li><div><h3>The draw-in <span class="tag ux">UX</span></h3>
+      <p>Routes draw in on first load, staggered by journey date, ~1.2s total, stations lighting
+      up as the line reaches them. This is the shareable moment — budget real time on the easing.
+      Under <code>prefers-reduced-motion</code>, it becomes an instant fade.</p></div></li>
+    <li><div><h3>One living dot <span class="tag ux">UX</span></h3>
+      <p>The vermillion “you are here” gets a slow three-second breathing pulse — the only
+      permanently animated thing on screen, which is what keeps it meaningful.</p></div></li>
+  </ol>
+</section>
+
+<section id="p3">
+  <div class="phead"><span class="pk">Phase 3</span><h2>Logging a journey</h2>
+  <p class="psub">Fifteen seconds or it is a bug. At a minute, you stop logging in week two and the product dies however good it looks.</p></div>
+  <ol class="work">
+    <li><div><h3>Search that knows codes <span class="tag ux">UX</span></h3>
+      <p>Instant search over the in-memory list, matching name <em>and</em> code — you know it as
+      HWH before Howrah. Prefix matches first, then contains.</p></div></li>
+    <li><div><h3>Zero-typing repeats <span class="tag ux">UX</span></h3>
+      <p>Recents and frequents above the keyboard before a single letter. Most journeys reuse four
+      stations; the repeat route should cost two taps. Plus a swap-direction button — returns are
+      half of all journeys.</p></div></li>
+    <li><div><h3>Rail-aware dates <span class="tag ux">UX</span></h3>
+      <p>Default today, yesterday one tap away — overnight trains arrive after midnight, and that
+      detail says the app was built by someone who rides them.</p></div></li>
+    <li><div><h3>Train autocomplete from the timetable <span class="tag ux">UX</span></h3>
+      <p>Given from + to, offer the trains that actually run that hop. Picking one upgrades the
+      drawn route from “plausible” to “exact — via the 12839’s stops”, and the UI should say so.</p></div></li>
+    <li><div><h3>No success modal <span class="tag ux">UX</span></h3>
+      <p>On save the sheet closes and the map draws the new route. The reward is the
+      confirmation; a dialog in front of it would hide the only good part.</p></div></li>
+    <li><div><h3>Optimistic add, with undo <span class="tag ux">UX</span></h3>
+      <p>The journey appears instantly; a quiet toast offers Undo for five seconds.</p>
+      <div class="eli"><b>Explained simply</b>Instead of making the user wait for the server to say
+      “saved”, show the result immediately and send the save in the background. If it fails —
+      which almost never happens — apologise then, rather than making every save feel slow to
+      guard against a rare failure. And acting-then-offering-to-reverse feels fast, where
+      asking-“are you sure?”-before-acting feels bureaucratic.</div></div></li>
+    <li><div><h3>Copy in a human voice <span class="tag ux">UX</span></h3>
+      <p>“These are the same station” beats “Invalid input”. Every error says what happened and
+      what to do.</p></div></li>
+    <li><div><h3>The empty state is the onboarding <span class="tag ux">UX</span></h3>
+      <p>Zero journeys: a muted map, one sentence, one button — “Log your first journey”. It is
+      the first thing anyone sees; design it like it matters, because it does.</p></div></li>
+    <li><div><h3>Edit and delete without dialogs <span class="tag ux">UX</span></h3>
+      <p>Swipe or long-press in the journey list. Delete gets an undo toast, never a confirm
+      box.</p></div></li>
+  </ol>
+</section>
+
+<section id="p4">
+  <div class="phead"><span class="pk">Phase 4</span><h2>Backend</h2>
+  <p class="psub">Supabase, kept deliberately small. The schema file already exists — this phase is mostly wiring, not building.</p></div>
+  <ol class="work">
+    <li><div><h3>Project + schema <span class="tag be">BE</span></h3>
+      <p>Create the Supabase project, paste <code>supabase/schema.sql</code> — journeys table,
+      derived stats view, row-level security already written.</p></div></li>
+    <li><div><h3>Google sign-in only <span class="tag be">BE</span></h3>
+      <p>One OAuth provider, one redirect URL, done. No password reset flow to build, ever.</p></div></li>
+    <li><div><h3>Row-level security, on <span class="tag be">BE</span></h3>
+      <div class="eli"><b>Explained simply</b>Normally your frontend asks the database “give me
+      journeys where user = me”, and a bug in that query could leak someone else’s rows.
+      Row-level security moves the rule into the database itself: a policy saying a request may
+      only ever see rows whose <code>user_id</code> matches the logged-in user. After that, even a
+      buggy query physically cannot return another person’s journeys. The database is the
+      bouncer, not your code.</div></div></li>
+    <li><div><h3>Server state via TanStack Query <span class="tag be">FE</span></h3>
+      <p><code>useJourneys()</code> for the cached list; <code>useAddJourney()</code> as the
+      optimistic mutation, computing <code>distance_km</code> from the routing graph at save
+      time.</p></div></li>
+    <li><div><h3>Signed-out is a demo, not a wall <span class="tag ux">UX</span></h3>
+      <p>Signed out, the map shows the sample journeys greyed with one sign-in button. The app
+      demonstrates itself before asking for anything.</p></div></li>
+    <li><div><h3>The one AI feature <span class="tag be">BE</span></h3>
+      <p>An Edge Function that turns pasted ticket text into <code>{from, to, date, train}</code>,
+      validated with zod.</p>
+      <div class="eli"><b>Explained simply</b>An Edge Function is a tiny piece of server code
+      Supabase runs for you on demand — one file, they host it. It exists here for exactly one
+      reason: the AI key must live on a server, because anything shipped to the browser is
+      readable by anyone who opens devtools. The browser sends the pasted text to your function;
+      the function holds the key, calls the model, checks the reply, returns clean fields.</div></div></li>
+    <li><div><h3>Rate-limit that function <span class="tag be">BE</span></h3>
+      <p>A per-user counter in the database, so a leaked URL cannot run up your bill.</p></div></li>
+    <li><div><h3>Export my data <span class="tag be">FE</span></h3>
+      <p>One button, JSON or CSV, straight from the client. It is your data, and it makes the
+      not-a-walled-garden point cheaply.</p></div></li>
+  </ol>
+</section>
+
+<section id="p5">
+  <div class="phead"><span class="pk">Phase 5</span><h2>Rewards and the passport</h2>
+  <p class="psub">Where the reward-loop reading gets applied — honestly. Nothing here rewards opening the app; everything rewards having gone somewhere.</p></div>
+  <ol class="work">
+    <li><div><h3>Stat tiles that hold still <span class="tag ux">UX</span></h3>
+      <p>Equal widths (fixes the reflow finding), cream tabular numerals, counts animating over
+      300ms so 999 → 1,000 is a moment instead of a jolt.</p></div></li>
+    <li><div><h3>States unlocked, honestly capped <span class="tag ux">UX</span></h3>
+      <p>Fill animates over 400ms with a one-line toast naming the state. Say “9 of 29 reachable”
+      — seven states have no station in the data, and admitting that beats pretending 36 is
+      reachable.</p></div></li>
+    <li><div><h3>Milestones with real thresholds <span class="tag ux">UX</span></h3>
+      <p>1,000 km · 10 stations · 5 states · one journey over 24 hours · both coasts. Locked ones
+      visible, so there is something to aim at. No badge for signing up, ever.</p></div></li>
+    <li><div><h3>The passport card <span class="tag ux">UX</span></h3>
+      <p>Canvas-rendered at 2×: mini-map of your routes, the three big numbers, the station-board
+      aesthetic, the date. <code>navigator.share</code> on mobile, download on desktop. This is the
+      thing that gets posted.</p></div></li>
+    <li><div><h3>The journey log screen <span class="tag ux">UX</span></h3>
+      <p>Reverse-chronological, each entry a small board-style row — doubling as the accessible
+      list view from Phase 2.</p></div></li>
+  </ol>
+</section>
+
+<section id="p6">
+  <div class="phead"><span class="pk">Phase 6</span><h2>DevOps and quality</h2>
+  <p class="psub">Deliberately light. No CI beyond the host, no error service, no Docker — per the decisions doc.</p></div>
+  <ol class="work">
+    <li><div><h3>Vercel + a real domain <span class="tag ops">OPS</span></h3>
+      <p>Connect the repo, set the two <code>VITE_</code> variables, deploy. Every push ships; every
+      pull request gets a preview URL.</p>
+      <div class="eli"><b>Explained simply</b>A preview deploy is a full copy of your site built
+      from a branch, living at its own temporary address — so you check a change on your actual
+      phone before merging it, not after.</div></div></li>
+    <li><div><h3>Decide where generated data lives <span class="tag ops">OPS</span></h3>
+      <p>Either commit the 1.1 MB of generated assets, or run <code>npm run assets</code> in the
+      build step. Both are defensible; pick one and write it in the README.</p></div></li>
+    <li><div><h3>Offline that actually helps <span class="tag be">FE</span></h3>
+      <p>The service worker already caches the shell and stations. Add a queue for journey saves
+      made offline, synced when the connection returns — trains are the one place your users
+      predictably have no signal, so this is on-subject, not gold-plating.</p>
+      <div class="eli"><b>Explained simply</b>A service worker is a small script the browser keeps
+      even after the tab closes. It sits between your app and the network and can answer requests
+      from its own cache — which is why the app can open instantly in a tunnel, showing the map
+      from the last time it loaded.</div></div></li>
+    <li><div><h3>A performance budget in writing <span class="tag ops">OPS</span></h3>
+      <p>Lighthouse ≥ 95 · first paint under 1s · zero layout shift · 60fps pan on a mid-range
+      Android. Re-measure after every phase, not once at the end.</p></div></li>
+    <li><div><h3>Tests where they pay <span class="tag ops">OPS</span></h3>
+      <p>Vitest on the pure functions only: distance, projection, shortest-path on a toy graph,
+      the pipeline filters. No component tests in v1.</p></div></li>
+    <li><div><h3>Fail like a person <span class="tag ux">UX</span></h3>
+      <p>An error boundary with a human screen — “The map hit a problem; reload usually fixes it”
+      — instead of a white page.</p></div></li>
+  </ol>
+</section>
+
+<section id="p7">
+  <div class="phead"><span class="pk">Phase 7 — week 6</span><h2>The Polish Pass</h2>
+  <p class="psub">No new features. Run the protocols — squint, greyscale, flip, 400% zoom, computed
+  styles, 10× slow-motion, hostile content, real phone outdoors, cold open, annotate-before-fixing —
+  and fix in severity order. Re-score the nine dimensions; the delta from 19/45 is the week’s
+  output. Then the case study, the 30-second capture, the public post, and the link to Vidit.</p></div>
+</section>
+
+<section id="p8">
+  <div class="phead"><span class="pk">Phase 8</span><h2>The ideas shelf</h2>
+  <p class="psub">Good-to-haves in rough value order. Nothing here starts before v1 ships — when an idea arrives mid-work, it lands here and waits.</p></div>
+  <ol class="work">
+    <li><div><h3>Hindi / English toggle <span class="tag ux">UX</span></h3>
+      <p>Deeply on-brand — station boards are bilingual by law. Tier 1 (cheap): the board
+      component always shows both scripts, names via a lookup file. Tier 2: UI strings in
+      <code>en.json</code> / <code>hi.json</code> behind a tiny <code>t('logJourney')</code> helper.</p>
+      <div class="eli"><b>Explained simply</b>Translation frameworks mostly solve problems you do
+      not have — plurals across twelve languages, right-to-left layouts. For two languages and
+      about forty strings, a JSON file per language and a function that picks from it is the
+      entire system. Indian number formatting (1,00,000) you already get from
+      <code>toLocaleString('en-IN')</code>.</div></div></li>
+    <li><div><h3>Zoom-to-journey <span class="tag ux">UX</span></h3>
+      <p>Tap a log entry, fly to its bounding box. Costs an afternoon once fly-to exists.</p></div></li>
+    <li><div><h3>Replay my year <span class="tag ux">UX</span></h3>
+      <p>All routes drawing in chronological order — the passport card’s animated sibling, and
+      extremely shareable in December.</p></div></li>
+    <li><div><h3>Railfan layer <span class="tag ux">UX</span></h3>
+      <p>Zones coloured, divisions outlined, junctions emphasised. The audience that will actually
+      find this app, served with data already in hand.</p></div></li>
+    <li><div><h3>Paste-a-ticket as the primary flow <span class="tag be">BE</span></h3>
+      <p>Once the Phase 4 parser has earned trust, promote it; manual entry stays one tap away.</p></div></li>
+    <li><div><h3>Sound and haptics, off by default <span class="tag ux">UX</span></h3>
+      <p>A soft station-bell tick on unlock, a 10ms vibration on save. Sound in an interface is
+      trespassing unless invited — so it is a setting, and it starts off.</p></div></li>
+    <li><div><h3>Night-run rendering <span class="tag ux">UX</span></h3>
+      <p>Overnight journeys draw with a subtly different treatment — the data is already in the
+      date field.</p></div></li>
+    <li><div><h3>GPX / GeoJSON export <span class="tag be">FE</span></h3>
+      <p>An afternoon of work that delights exactly the railfan audience.</p></div></li>
+    <li><div><h3>Named, so it stays said no to <span class="tag ux">—</span></h3>
+      <p>Streaks and daily-use mechanics: never — the honest reward is the map. Friends and
+      leaderboards: no — comparative reward changes what the map means. Photos: v2 at the
+      earliest — storage, moderation and layout are a big feature in a trench coat. Native
+      widgets and share-sheet: only if daily use proves out, via a wrapper.</p></div></li>
+  </ol>
+</section>
+
+<section id="colours">
+  <div class="phead"><span class="pk">Colour combinations</span><h2>Three liveries for one map</h2>
+  <p class="psub">Complete, contrast-checked combinations — each named for a real train livery,
+  because the palette has been photographed from the railways all along. Pick one as the
+  identity; the other two can become <strong>unlockable themes</strong> later, which turns a
+  restyle into a milestone reward for free.</p></div>
+
+  <div class="palgrid">
+    <div class="pal">
+      <svg viewBox="0 0 220 240" role="img" aria-label="Miniature map of India previewing this colour combination.">
+<rect width="220" height="240" fill="#0A1C33"/>
+<path d="M188,104L180,107L179,96L163,96L154,89L152,103L160,123L146,127L146,133L134,143L125,153L112,163L112,167L97,174L97,191L92,206L93,216L74,234L67,227L62,209L44,167L40,140L37,129L29,132L15,120L11,109L32,102L22,81L28,75L37,77L46,69L60,46L53,37L54,20L47,12L65,6L79,19L89,15L96,18L88,36L86,48L101,61L95,70L107,79L141,89L176,84L186,68L204,60L209,76L199,84L195,105Z" fill="#0C2140" stroke="#22496E" stroke-width="0.8"/>
+<rect x="129" y="121" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="71" y="130" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="115" y="103" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="77" y="73" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="65" y="197" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="93" y="79" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="47" y="121" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="92" y="88" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="146" y="97" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="146" y="123" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="105" y="115" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="131" y="112" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="143" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="99" y="83" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="143" y="92" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="140" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="182" y="97" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="140" y="111" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="142" y="96" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="153" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="34" y="113" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="34" y="115" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="181" y="85" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="58" y="158" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="90" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="105" y="91" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="139" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="96" y="87" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="122" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="143" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="74" y="54" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="123" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="79" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="115" y="157" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="143" y="99" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="180" y="82" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="98" y="158" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="98" y="158" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="114" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="43" y="115" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="94" y="94" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="51" y="160" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="41" y="136" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="97" y="74" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="75" y="113" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="63" y="130" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="61" y="163" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="25" y="126" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="127" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="146" y="114" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="42" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="76" y="147" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="116" y="152" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="63" y="61" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="121" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="133" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="142" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="37" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="39" y="105" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="25" y="118" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="70" y="54" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="60" y="131" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="97" y="164" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="62" y="46" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="185" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="146" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="66" y="184" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="88" y="139" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="69" y="209" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="138" y="100" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="59" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="100" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="65" y="101" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="125" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="75" y="81" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="102" y="164" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="37" y="110" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="131" y="94" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="66" y="54" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="49" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="59" y="153" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="54" y="62" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="152" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="189" y="88" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="200" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="100" y="167" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="139" y="130" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="124" y="91" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="144" y="97" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="83" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="53" y="61" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="55" y="84" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="65" y="64" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="76" y="227" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="99" y="166" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="47" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="129" y="101" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="95" y="91" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="93" y="118" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="155" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="121" y="128" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="110" y="161" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="50" y="94" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="65" y="61" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="132" y="103" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="52" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="130" y="86" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="192" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="119" y="92" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="63" y="183" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="123" y="83" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="134" y="111" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="125" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="143" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="67" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="76" y="196" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="112" y="123" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="135" y="113" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="106" y="98" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="99" y="101" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="126" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="138" y="131" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="81" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="190" y="85" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="110" y="98" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="106" y="98" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="154" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="127" y="146" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="63" y="45" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="154" y="113" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="115" y="106" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="77" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="82" y="159" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="44" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="39" y="111" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="43" y="145" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="143" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="153" y="121" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="88" y="80" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="137" y="135" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="37" y="112" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="96" y="89" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="67" y="227" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="75" y="135" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="67" y="52" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="63" y="49" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="122" y="148" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="136" y="135" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="87" y="194" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="229" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="135" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="62" y="66" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="93" y="102" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="61" y="84" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="36" y="114" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="67" y="52" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="85" y="122" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="117" y="92" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="114" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="95" y="194" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="98" y="167" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="59" y="185" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="113" y="121" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="52" y="59" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="60" y="207" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="218" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="211" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="71" y="151" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="99" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="140" y="111" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="54" y="56" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="113" y="133" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="182" y="100" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="79" y="63" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="51" y="97" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="159" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="151" y="115" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="186" y="90" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="88" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="147" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="135" y="117" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="112" y="94" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="74" y="103" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="110" y="107" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="200" y="75" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="91" y="83" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="90" y="209" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="137" y="98" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="65" y="51" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="43" y="152" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="147" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="62" y="61" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="199" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="40" y="82" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="138" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="65" y="52" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="129" y="89" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="76" y="203" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="80" y="204" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="82" y="159" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="133" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="196" y="78" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="72" y="103" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="57" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="41" y="145" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="142" y="100" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="84" y="96" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="67" y="199" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="85" y="159" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="94" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="153" y="124" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="82" y="174" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="130" y="143" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="67" y="76" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="115" y="82" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="136" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="41" y="116" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="154" y="118" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="93" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="130" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="44" y="162" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="82" y="160" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="66" y="224" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="90" y="92" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="28" y="110" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="129" y="101" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="44" y="147" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="49" y="155" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="145" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="53" y="59" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="85" y="127" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="88" y="204" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="139" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="71" y="74" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="129" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="201" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="72" y="139" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="87" y="193" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="146" y="115" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="69" y="100" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="45" y="92" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="91" y="165" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="148" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="134" y="96" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="139" y="112" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="143" y="93" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="55" y="95" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="80" y="163" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="96" y="74" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="75" y="178" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="87" y="66" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="19" y="123" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="44" y="119" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="76" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="127" y="84" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="90" y="189" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="94" y="109" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="89" y="69" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="110" y="85" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="103" y="85" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="75" y="71" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="100" y="103" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="79" y="205" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="82" y="199" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="160" y="86" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="43" y="126" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="31" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="115" y="92" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="74" y="72" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="134" y="94" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="24" y="129" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="87" y="208" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="80" y="162" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="55" y="101" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="50" y="160" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="133" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="41" y="103" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="39" y="107" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="72" y="87" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="152" y="113" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="93" y="100" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="90" y="143" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="123" y="148" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="125" y="122" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="76" y="63" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="137" y="94" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="82" y="155" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="221" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="53" y="170" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="139" y="90" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="128" y="145" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="68" y="126" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="131" y="131" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="150" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="74" y="53" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="227" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="151" y="108" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="210" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="201" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="106" y="127" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="81" y="153" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="78" y="219" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="153" y="116" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="24" y="125" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="117" y="97" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="64" y="209" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="136" y="89" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="87" y="123" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="56" y="175" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="42" y="117" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="44" y="120" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="61" y="209" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="67" y="228" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="92" y="212" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="74" y="178" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="41" y="145" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="106" y="166" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="115" y="98" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="73" y="145" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="128" y="101" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="63" y="152" width="2" height="2" fill="#7E93A6" opacity=".55"/><rect x="92" y="75" width="2" height="2" fill="#7E93A6" opacity=".55"/>
+<path d="M154,118L139,118L110,124L88,131L99,167L96,194L88,195" fill="none" stroke="#EAB143" stroke-width="7" opacity="0.16" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M154,118L139,118L110,124L88,131L99,167L96,194L88,195" fill="none" stroke="#EAB143" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="154" cy="118" r="4" fill="#EECB9A" stroke="#0A1C33" stroke-width="1.5"/>
+<circle cx="88" cy="195" r="4.5" fill="#E85C50" stroke="#0A1C33" stroke-width="1.5"/>
+</svg>
+      <div class="pb">
+        <h3>ICF Night</h3>
+        <p class="sub">The committed identity — the blue coach after dark, signage glowing.</p>
+        <div class="sw"><span style="background:#0A1C33"></span><span style="background:#0C2140"></span><span style="background:#143355"></span><span style="background:#EAB143"></span><span style="background:#EECB9A"></span><span style="background:#E85C50"></span></div>
+        <table>
+          <tr><td>Ground</td><td>#0A1C33</td></tr>
+          <tr><td>Land / visited</td><td>#0C2140 / #143355</td></tr>
+          <tr><td>Route — 8.9:1</td><td>#EAB143</td></tr>
+          <tr><td>Numerals — 11.1:1</td><td>#EECB9A</td></tr>
+          <tr><td>You are here</td><td>#E85C50</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="pal">
+      <svg viewBox="0 0 220 240" role="img" aria-label="Miniature map of India previewing this colour combination.">
+<rect width="220" height="240" fill="#221014"/>
+<path d="M188,104L180,107L179,96L163,96L154,89L152,103L160,123L146,127L146,133L134,143L125,153L112,163L112,167L97,174L97,191L92,206L93,216L74,234L67,227L62,209L44,167L40,140L37,129L29,132L15,120L11,109L32,102L22,81L28,75L37,77L46,69L60,46L53,37L54,20L47,12L65,6L79,19L89,15L96,18L88,36L86,48L101,61L95,70L107,79L141,89L176,84L186,68L204,60L209,76L199,84L195,105Z" fill="#301820" stroke="#4A2A36" stroke-width="0.8"/>
+<rect x="129" y="121" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="71" y="130" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="115" y="103" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="77" y="73" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="65" y="197" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="93" y="79" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="47" y="121" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="92" y="88" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="146" y="97" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="146" y="123" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="105" y="115" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="131" y="112" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="143" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="99" y="83" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="143" y="92" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="140" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="182" y="97" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="140" y="111" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="142" y="96" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="153" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="34" y="113" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="34" y="115" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="181" y="85" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="58" y="158" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="90" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="105" y="91" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="139" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="96" y="87" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="122" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="143" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="74" y="54" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="123" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="79" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="115" y="157" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="143" y="99" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="180" y="82" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="98" y="158" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="98" y="158" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="114" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="43" y="115" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="94" y="94" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="51" y="160" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="41" y="136" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="97" y="74" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="75" y="113" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="63" y="130" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="61" y="163" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="25" y="126" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="127" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="146" y="114" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="42" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="76" y="147" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="116" y="152" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="63" y="61" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="121" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="133" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="142" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="37" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="39" y="105" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="25" y="118" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="70" y="54" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="60" y="131" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="97" y="164" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="62" y="46" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="185" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="146" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="66" y="184" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="88" y="139" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="69" y="209" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="138" y="100" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="59" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="100" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="65" y="101" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="125" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="75" y="81" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="102" y="164" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="37" y="110" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="131" y="94" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="66" y="54" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="49" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="59" y="153" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="54" y="62" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="152" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="189" y="88" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="200" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="100" y="167" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="139" y="130" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="124" y="91" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="144" y="97" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="83" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="53" y="61" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="55" y="84" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="65" y="64" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="76" y="227" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="99" y="166" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="47" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="129" y="101" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="95" y="91" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="93" y="118" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="155" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="121" y="128" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="110" y="161" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="50" y="94" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="65" y="61" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="132" y="103" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="52" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="130" y="86" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="192" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="119" y="92" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="63" y="183" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="123" y="83" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="134" y="111" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="125" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="143" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="67" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="76" y="196" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="112" y="123" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="135" y="113" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="106" y="98" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="99" y="101" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="126" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="138" y="131" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="81" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="190" y="85" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="110" y="98" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="106" y="98" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="154" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="127" y="146" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="63" y="45" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="154" y="113" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="115" y="106" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="77" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="82" y="159" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="44" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="39" y="111" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="43" y="145" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="143" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="153" y="121" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="88" y="80" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="137" y="135" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="37" y="112" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="96" y="89" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="67" y="227" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="75" y="135" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="67" y="52" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="63" y="49" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="122" y="148" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="136" y="135" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="87" y="194" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="229" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="135" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="62" y="66" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="93" y="102" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="61" y="84" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="36" y="114" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="67" y="52" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="85" y="122" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="117" y="92" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="114" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="95" y="194" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="98" y="167" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="59" y="185" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="113" y="121" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="52" y="59" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="60" y="207" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="218" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="211" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="71" y="151" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="99" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="140" y="111" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="54" y="56" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="113" y="133" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="182" y="100" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="79" y="63" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="51" y="97" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="159" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="151" y="115" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="186" y="90" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="88" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="147" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="135" y="117" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="112" y="94" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="74" y="103" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="110" y="107" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="200" y="75" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="91" y="83" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="90" y="209" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="137" y="98" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="65" y="51" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="43" y="152" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="147" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="62" y="61" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="199" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="40" y="82" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="138" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="65" y="52" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="129" y="89" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="76" y="203" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="80" y="204" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="82" y="159" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="133" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="196" y="78" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="72" y="103" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="57" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="41" y="145" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="142" y="100" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="84" y="96" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="67" y="199" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="85" y="159" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="94" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="153" y="124" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="82" y="174" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="130" y="143" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="67" y="76" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="115" y="82" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="136" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="41" y="116" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="154" y="118" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="93" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="130" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="44" y="162" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="82" y="160" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="66" y="224" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="90" y="92" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="28" y="110" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="129" y="101" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="44" y="147" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="49" y="155" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="145" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="53" y="59" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="85" y="127" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="88" y="204" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="139" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="71" y="74" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="129" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="201" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="72" y="139" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="87" y="193" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="146" y="115" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="69" y="100" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="45" y="92" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="91" y="165" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="148" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="134" y="96" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="139" y="112" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="143" y="93" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="55" y="95" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="80" y="163" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="96" y="74" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="75" y="178" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="87" y="66" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="19" y="123" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="44" y="119" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="76" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="127" y="84" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="90" y="189" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="94" y="109" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="89" y="69" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="110" y="85" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="103" y="85" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="75" y="71" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="100" y="103" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="79" y="205" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="82" y="199" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="160" y="86" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="43" y="126" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="31" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="115" y="92" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="74" y="72" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="134" y="94" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="24" y="129" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="87" y="208" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="80" y="162" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="55" y="101" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="50" y="160" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="133" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="41" y="103" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="39" y="107" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="72" y="87" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="152" y="113" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="93" y="100" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="90" y="143" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="123" y="148" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="125" y="122" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="76" y="63" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="137" y="94" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="82" y="155" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="221" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="53" y="170" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="139" y="90" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="128" y="145" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="68" y="126" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="131" y="131" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="150" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="74" y="53" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="227" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="151" y="108" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="210" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="201" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="106" y="127" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="81" y="153" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="78" y="219" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="153" y="116" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="24" y="125" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="117" y="97" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="64" y="209" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="136" y="89" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="87" y="123" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="56" y="175" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="42" y="117" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="44" y="120" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="61" y="209" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="67" y="228" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="92" y="212" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="74" y="178" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="41" y="145" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="106" y="166" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="115" y="98" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="73" y="145" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="128" y="101" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="63" y="152" width="2" height="2" fill="#A89A8E" opacity=".55"/><rect x="92" y="75" width="2" height="2" fill="#A89A8E" opacity=".55"/>
+<path d="M154,118L139,118L110,124L88,131L99,167L96,194L88,195" fill="none" stroke="#E2B13C" stroke-width="7" opacity="0.16" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M154,118L139,118L110,124L88,131L99,167L96,194L88,195" fill="none" stroke="#E2B13C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="154" cy="118" r="4" fill="#F0DFC8" stroke="#221014" stroke-width="1.5"/>
+<circle cx="88" cy="195" r="4.5" fill="#E85C50" stroke="#221014" stroke-width="1.5"/>
+</svg>
+      <div class="pb">
+        <h3>Rajdhani</h3>
+        <p class="sub">Dark alternative — the maroon LHB coach with its gold band. Feels like first class.</p>
+        <div class="sw"><span style="background:#221014"></span><span style="background:#301820"></span><span style="background:#43222E"></span><span style="background:#E2B13C"></span><span style="background:#F0DFC8"></span><span style="background:#E85C50"></span></div>
+        <table>
+          <tr><td>Ground</td><td>#221014</td></tr>
+          <tr><td>Land / visited</td><td>#301820 / #43222E</td></tr>
+          <tr><td>Route — 9.2:1</td><td>#E2B13C</td></tr>
+          <tr><td>Numerals — 14.0:1</td><td>#F0DFC8</td></tr>
+          <tr><td>You are here</td><td>#E85C50</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="pal">
+      <svg viewBox="0 0 220 240" role="img" aria-label="Miniature map of India previewing this colour combination.">
+<rect width="220" height="240" fill="#F2F4F6"/>
+<path d="M188,104L180,107L179,96L163,96L154,89L152,103L160,123L146,127L146,133L134,143L125,153L112,163L112,167L97,174L97,191L92,206L93,216L74,234L67,227L62,209L44,167L40,140L37,129L29,132L15,120L11,109L32,102L22,81L28,75L37,77L46,69L60,46L53,37L54,20L47,12L65,6L79,19L89,15L96,18L88,36L86,48L101,61L95,70L107,79L141,89L176,84L186,68L204,60L209,76L199,84L195,105Z" fill="#E3E8ED" stroke="#C4CDD6" stroke-width="0.8"/>
+<rect x="129" y="121" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="71" y="130" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="115" y="103" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="77" y="73" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="65" y="197" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="93" y="79" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="47" y="121" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="92" y="88" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="146" y="97" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="146" y="123" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="105" y="115" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="131" y="112" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="143" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="99" y="83" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="143" y="92" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="140" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="182" y="97" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="140" y="111" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="142" y="96" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="153" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="34" y="113" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="34" y="115" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="181" y="85" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="58" y="158" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="90" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="105" y="91" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="139" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="96" y="87" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="122" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="143" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="74" y="54" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="123" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="79" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="115" y="157" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="143" y="99" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="180" y="82" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="98" y="158" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="98" y="158" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="114" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="43" y="115" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="94" y="94" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="51" y="160" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="41" y="136" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="97" y="74" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="75" y="113" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="63" y="130" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="61" y="163" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="25" y="126" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="127" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="146" y="114" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="42" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="76" y="147" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="116" y="152" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="63" y="61" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="121" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="133" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="142" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="37" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="39" y="105" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="25" y="118" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="70" y="54" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="60" y="131" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="97" y="164" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="62" y="46" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="185" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="146" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="66" y="184" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="88" y="139" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="69" y="209" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="138" y="100" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="59" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="100" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="65" y="101" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="125" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="75" y="81" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="102" y="164" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="37" y="110" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="131" y="94" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="66" y="54" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="49" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="59" y="153" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="54" y="62" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="152" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="189" y="88" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="200" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="100" y="167" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="139" y="130" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="124" y="91" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="144" y="97" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="83" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="53" y="61" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="55" y="84" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="65" y="64" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="76" y="227" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="99" y="166" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="47" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="129" y="101" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="95" y="91" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="93" y="118" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="155" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="121" y="128" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="110" y="161" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="50" y="94" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="65" y="61" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="132" y="103" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="52" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="130" y="86" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="192" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="119" y="92" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="63" y="183" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="123" y="83" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="134" y="111" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="125" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="143" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="67" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="76" y="196" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="112" y="123" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="135" y="113" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="106" y="98" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="99" y="101" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="126" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="138" y="131" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="81" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="190" y="85" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="110" y="98" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="106" y="98" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="154" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="127" y="146" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="63" y="45" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="154" y="113" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="115" y="106" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="77" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="82" y="159" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="44" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="39" y="111" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="43" y="145" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="143" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="153" y="121" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="88" y="80" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="137" y="135" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="37" y="112" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="96" y="89" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="67" y="227" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="75" y="135" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="67" y="52" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="63" y="49" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="122" y="148" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="136" y="135" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="87" y="194" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="229" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="135" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="62" y="66" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="93" y="102" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="61" y="84" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="36" y="114" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="67" y="52" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="85" y="122" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="117" y="92" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="114" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="95" y="194" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="98" y="167" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="59" y="185" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="113" y="121" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="52" y="59" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="60" y="207" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="218" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="211" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="71" y="151" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="99" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="140" y="111" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="54" y="56" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="113" y="133" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="182" y="100" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="79" y="63" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="51" y="97" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="159" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="151" y="115" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="186" y="90" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="88" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="147" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="135" y="117" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="112" y="94" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="74" y="103" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="110" y="107" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="200" y="75" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="91" y="83" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="90" y="209" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="137" y="98" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="65" y="51" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="43" y="152" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="147" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="62" y="61" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="199" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="40" y="82" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="138" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="65" y="52" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="129" y="89" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="76" y="203" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="80" y="204" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="82" y="159" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="133" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="196" y="78" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="72" y="103" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="57" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="41" y="145" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="142" y="100" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="84" y="96" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="67" y="199" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="85" y="159" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="94" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="153" y="124" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="82" y="174" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="130" y="143" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="67" y="76" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="115" y="82" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="136" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="41" y="116" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="154" y="118" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="93" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="130" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="44" y="162" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="82" y="160" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="66" y="224" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="90" y="92" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="28" y="110" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="129" y="101" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="44" y="147" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="49" y="155" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="145" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="53" y="59" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="85" y="127" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="88" y="204" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="139" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="71" y="74" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="129" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="201" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="72" y="139" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="87" y="193" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="146" y="115" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="69" y="100" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="45" y="92" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="91" y="165" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="148" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="134" y="96" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="139" y="112" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="143" y="93" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="55" y="95" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="80" y="163" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="96" y="74" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="75" y="178" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="87" y="66" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="19" y="123" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="44" y="119" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="76" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="127" y="84" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="90" y="189" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="94" y="109" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="89" y="69" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="110" y="85" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="103" y="85" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="75" y="71" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="100" y="103" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="79" y="205" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="82" y="199" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="160" y="86" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="43" y="126" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="31" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="115" y="92" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="74" y="72" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="134" y="94" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="24" y="129" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="87" y="208" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="80" y="162" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="55" y="101" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="50" y="160" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="133" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="41" y="103" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="39" y="107" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="72" y="87" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="152" y="113" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="93" y="100" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="90" y="143" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="123" y="148" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="125" y="122" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="76" y="63" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="137" y="94" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="82" y="155" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="221" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="53" y="170" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="139" y="90" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="128" y="145" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="68" y="126" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="131" y="131" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="150" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="74" y="53" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="227" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="151" y="108" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="210" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="201" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="106" y="127" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="81" y="153" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="78" y="219" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="153" y="116" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="24" y="125" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="117" y="97" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="64" y="209" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="136" y="89" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="87" y="123" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="56" y="175" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="42" y="117" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="44" y="120" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="61" y="209" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="67" y="228" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="92" y="212" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="74" y="178" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="41" y="145" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="106" y="166" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="115" y="98" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="73" y="145" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="128" y="101" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="63" y="152" width="2" height="2" fill="#8C97A1" opacity=".55"/><rect x="92" y="75" width="2" height="2" fill="#8C97A1" opacity=".55"/>
+<path d="M154,118L139,118L110,124L88,131L99,167L96,194L88,195" fill="none" stroke="#C2590B" stroke-width="7" opacity="0.14" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M154,118L139,118L110,124L88,131L99,167L96,194L88,195" fill="none" stroke="#C2590B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="154" cy="118" r="4" fill="#A64A08" stroke="#F2F4F6" stroke-width="1.5"/>
+<circle cx="88" cy="195" r="4.5" fill="#B4302A" stroke="#F2F4F6" stroke-width="1.5"/>
+</svg>
+      <div class="pb">
+        <h3>Vande Bharat</h3>
+        <p class="sub">Light alternative — white and saffron of the newest trains. A light theme with identity, not an inversion.</p>
+        <div class="sw"><span style="background:#F2F4F6"></span><span style="background:#E3E8ED"></span><span style="background:#F4E3CE"></span><span style="background:#C2590B"></span><span style="background:#12283F"></span><span style="background:#B4302A"></span></div>
+        <table>
+          <tr><td>Ground</td><td>#F2F4F6</td></tr>
+          <tr><td>Land / visited</td><td>#E3E8ED / #F4E3CE</td></tr>
+          <tr><td>Route — 3.6:1 stroke</td><td>#C2590B</td></tr>
+          <tr><td>Accent text — 5.3:1</td><td>#A64A08</td></tr>
+          <tr><td>Ink — 13.6:1</td><td>#12283F</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <p class="palnote"><b>Two implementation notes.</b> Only tokens change between these — the code
+  never mentions a hex, so a whole theme is a ~15-line block in <code>tokens.css</code>. And the
+  red “you are here” stays in the same family across all three, because meaning-colours should
+  survive re-theming: if the semantic colours changed with the mood colours, the map would have
+  to be relearned per theme. In Vande Bharat, note the full saffron <code>#E8720C</code> is a
+  <em>fill</em> only (navy text on top) — as text it fails contrast, the same rule the board
+  yellow follows in the light theme today.</p>
+</section>
+
+<footer>
+  <p>How to use this: each evening, open the current phase, pick the top unchecked item, do only
+  it. Ideas that arrive mid-work go to Phase 8 — never into the current phase. The list is
+  exhaustive precisely so that nothing new deserves to jump the queue.</p>
+  <p>Companion documents: the six-week plan (when), the project spec (scope), the palette (why
+  these colours), and The Polish Pass (how to judge the result). Contrast figures are WCAG 2.1
+  ratios, measured 30 August 2026.</p>
+</footer>
+
+</div>
+</body>
+</html>

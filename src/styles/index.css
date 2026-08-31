@@ -28,6 +28,8 @@
   --color-land: var(--land);
   --color-land-visited: var(--land-visited);
   --color-dot: var(--dot);
+  --color-sea: var(--sea);
+  --color-sea-ink: var(--sea-ink);
 
   --color-route-taken: var(--route-taken);
   --color-route-planned: var(--route-planned);
@@ -79,3 +81,14 @@
     }
   }
 }
+
+/* The wave glyphs in the sea bob a couple of map units, each on its own phase
+   (negative delays, set inline). The reduced-motion block above already stops
+   this; the ≈ button on the map pauses it for everyone else — an autoplaying
+   loop longer than 5 s needs an explicit stop (WCAG 2.2.2). */
+@keyframes sea-bob {
+  from { transform: translateY(0); }
+  to   { transform: translateY(2.4px); }
+}
+.sea-wave { animation: sea-bob 7s ease-in-out infinite alternate; }
+.sea-paused .sea-wave { animation-play-state: paused; }

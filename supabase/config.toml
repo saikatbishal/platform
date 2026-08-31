@@ -1,0 +1,26 @@
+# Supabase CLI config — used for LOCAL development (`supabase start`) and to
+# keep auth settings in code instead of clicked-through dashboard state.
+# The hosted project mirrors these values via the dashboard (docs/09 walks
+# through it); env(...) placeholders are read from your shell or .env.
+
+project_id = "platform"
+
+[auth]
+# Where the browser is allowed to land after sign-in. Local dev first;
+# add the Vercel production and preview URLs when they exist.
+site_url = "http://localhost:5173"
+additional_redirect_urls = [
+  "http://localhost:5173",
+  # "https://YOUR_DOMAIN",
+  # "https://*-YOUR_VERCEL_TEAM.vercel.app",
+]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+
+[auth.external.google]
+enabled = true
+client_id = "env(SUPABASE_AUTH_GOOGLE_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_GOOGLE_SECRET)"
+# Leave redirect_uri empty: Supabase supplies
+# https://<project-ref>.supabase.co/auth/v1/callback — the value you paste
+# into Google Cloud, not the other way around.

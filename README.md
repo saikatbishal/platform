@@ -16,7 +16,9 @@ with no build step).
 ```bash
 npm install
 
-cp .env.example .env        # then fill in the two Supabase values
+# .env ships with mock YOUR_... values: the app runs in preview mode
+# (sample journeys, sign-in disabled). Fill real Supabase values later
+# by following docs/09-auth-go-live.md — no code changes needed.
 
 npm run assets              # builds the map geometry + station data (~90s, needs network)
 npm run dev                 # http://localhost:5173
@@ -41,7 +43,10 @@ For the database, paste `supabase/schema.sql` into the Supabase SQL editor.
 
 ```
 platform/
-├── docs/                  read 00-decisions.md before adding anything
+├── HANDOVER.md            state file — start every fresh session here
+├── CHANGELOG.md           one honest entry per working session
+├── docs/                  00 decisions · 05 data · 06 map · 07 routing ·
+│                          08 roadmap · 09 auth go-live · 10 UI inspection
 ├── scripts/
 │   ├── build-map.ts       outline, states, districts, rail, cities
 │   └── build-stations.ts  fetch, clean, derive state from coordinates

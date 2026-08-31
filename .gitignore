@@ -10,7 +10,7 @@ dist/
 dist-ssr/
 .vite/
 *.local
-
+*.md
 # generated assets (rebuild with: npm run assets)
 public/data/stations.json
 public/maps/
