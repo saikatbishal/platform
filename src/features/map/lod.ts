@@ -29,15 +29,18 @@ export interface LodTier {
   stationRadius: number
   /** Label individual stations? Only once few enough are on screen. */
   stationLabels: boolean
+  /** Sea names and wave glyphs scale with the map, so past region zoom they
+      turn into billboards. The graticule and waterlining stay at every zoom. */
+  sea: boolean
 }
 
 /** Tuned by hand in docs/spike/map-spike.html, not guessed. */
 export const LOD_TIERS: readonly LodTier[] = [
-  { minZoom: 1,   name: 'country',  railMaxRank: 6,  railWidth: 0.6, cityCount: 12,  districts: false, stationRadius: 1.0, stationLabels: false },
-  { minZoom: 2.2, name: 'region',   railMaxRank: 7,  railWidth: 0.8, cityCount: 40,  districts: false, stationRadius: 1.3, stationLabels: false },
-  { minZoom: 4,   name: 'state',    railMaxRank: 8,  railWidth: 1.1, cityCount: 90,  districts: true,  stationRadius: 1.8, stationLabels: true  },
-  { minZoom: 7.5, name: 'district', railMaxRank: 9,  railWidth: 1.5, cityCount: 160, districts: true,  stationRadius: 2.5, stationLabels: true  },
-  { minZoom: 12,  name: 'local',    railMaxRank: 99, railWidth: 2.0, cityCount: 214, districts: true,  stationRadius: 3.4, stationLabels: true  },
+  { minZoom: 1,   name: 'country',  railMaxRank: 6,  railWidth: 0.6, cityCount: 12,  districts: false, stationRadius: 1.0, stationLabels: false, sea: true  },
+  { minZoom: 2.2, name: 'region',   railMaxRank: 7,  railWidth: 0.8, cityCount: 40,  districts: false, stationRadius: 1.3, stationLabels: false, sea: true  },
+  { minZoom: 4,   name: 'state',    railMaxRank: 8,  railWidth: 1.1, cityCount: 90,  districts: true,  stationRadius: 1.8, stationLabels: true,  sea: false },
+  { minZoom: 7.5, name: 'district', railMaxRank: 9,  railWidth: 1.5, cityCount: 160, districts: true,  stationRadius: 2.5, stationLabels: true,  sea: false },
+  { minZoom: 12,  name: 'local',    railMaxRank: 99, railWidth: 2.0, cityCount: 214, districts: true,  stationRadius: 3.4, stationLabels: true,  sea: false },
 ] as const
 
 export function tierFor(zoom: number): LodTier {

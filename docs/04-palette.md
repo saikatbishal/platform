@@ -172,5 +172,8 @@ shareable passport card. It's free identity.
   display; the numerals want a mono or tabular face. Decide in week 1 with the two screens.
 - **The halo.** The travelled route reads best with a wide, very low-opacity stroke of `accent`
   behind a narrow solid one. Exact opacity needs tuning against the real map density.
-- **Whether the sky-blue `#98C5C8` earns a slot.** It's in the references but has no job yet.
-  Leave it out until something needs it rather than finding it a role.
+- ~~**Whether the sky-blue `#98C5C8` earns a slot.**~~ Settled 31 Aug: it's the sea.
+  `--sea` (darkened toward the coach navy / a pale wash on paper) fills the water around
+  the landmass, and `--sea-ink` (a half-strength derivative) draws everything ON it —
+  graticule, coastal waterlining, wave glyphs, sea names. Decorative surfaces, so the
+  contrast rules above don't bind them.
