@@ -203,6 +203,17 @@ export function IndiaMap({ journeys, onStats }: Props) {
             strokeOpacity={0.16}
             className="stroke-sea-ink [vector-effect:non-scaling-stroke]"
           />
+          {/* neighbouring coastlines as ghosts — scenery, not states */}
+          {data.neighbors.map((d, i) => (
+            <path
+              key={i}
+              d={d}
+              fillOpacity={0.1}
+              strokeOpacity={0.3}
+              strokeWidth={0.8}
+              className="fill-sea-ink stroke-sea-ink [vector-effect:non-scaling-stroke]"
+            />
+          ))}
           {/* coastal waterlining, the engraved-chart way: the same coast
               stroked three times, wide and faint to narrow and firm */}
           {([[11, 0.08], [6.5, 0.16], [2.8, 0.3]] as const).map(([w, o]) => (
@@ -227,9 +238,20 @@ export function IndiaMap({ journeys, onStats }: Props) {
                     strokeOpacity={0.5}
                     strokeLinecap="round"
                     className="sea-wave stroke-sea-ink [vector-effect:non-scaling-stroke]"
-                    style={{ animationDelay: `${-(i * 1.7) % 7}s`, animationDuration: `${6 + (i % 3) * 1.5}s` }}
+                    style={{ animationDelay: `${-(i * 2.1) % 10}s`, animationDuration: `${9 + (i % 3) * 2}s` }}
                   />
                 </g>
+              ))}
+              {data.sea.dots.map((p, i) => (
+                <circle
+                  key={i}
+                  cx={p.x}
+                  cy={p.y}
+                  r={1.3}
+                  fillOpacity={0.35}
+                  className="sea-dot fill-sea-ink"
+                  style={{ animationDelay: `${-(i * 2.3) % 12}s`, animationDuration: `${10 + (i % 4) * 2}s` }}
+                />
               ))}
               {data.sea.labels.map((l) => (
                 <text

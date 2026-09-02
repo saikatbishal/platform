@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { isSupabaseConfigured } from '@/lib/supabase.ts'
+import type { AuthMode } from './types.ts'
 
 interface Props {
+  mode: AuthMode
   onSignIn: () => Promise<void>
   redirecting: boolean
 }
@@ -19,22 +20,34 @@ function GoogleG() {
 }
 
 /**
- * The one way into the app. Google's sign-in branding rules ask for their
- * logo on a plain light or dark surface — so this button stays neutral on
- * purpose, and the surrounding card carries the app's character instead.
+ * The one way into the app. Google's branding rules ask for their logo on a
+ * plain light or dark surface — so this button stays neutral on purpose, and
+ * the surrounding card carries the app's character instead.
+ *
+ * In demo mode the Google mark is gone, because nothing about that session
+ * involves Google and a borrowed logo would be a lie about where your data is.
  */
-export function SignInButton({ onSignIn, redirecting }: Props) {
+export function SignInButton({ mode, onSignIn, redirecting }: Props) {
   const [pressed, setPressed] = useState(false)
-  const disabled = !isSupabaseConfigured || redirecting
+  const busy = redirecting || pressed
+  const demo = mode === 'demo'
+
+  const label = demo
+    ? 'Look around with sample journeys'
+    : busy
+      ? 'Opening Google…'
+      : 'Continue with Google'
 
   return (
     <div className="flex flex-col items-stretch gap-2.5">
       <button
         type="button"
-        disabled={disabled}
+        disabled={busy}
         onClick={() => {
           setPressed(true)
-          void onSignIn().finally(() => { setPressed(false) })
+          void onSignIn().finally(() => {
+            setPressed(false)
+          })
         }}
         className="flex min-h-11 items-center justify-center gap-3 rounded-sm border border-line-strong
                    bg-surface px-5 py-2.5 font-semibold text-ink
@@ -42,14 +55,14 @@ export function SignInButton({ onSignIn, redirecting }: Props) {
                    hover:bg-surface-2 active:bg-surface-2
                    disabled:cursor-not-allowed disabled:opacity-60"
       >
-        <GoogleG />
-        <span>{redirecting || pressed ? 'Opening Google…' : 'Continue with Google'}</span>
+        {!demo && <GoogleG />}
+        <span>{label}</span>
       </button>
 
-      {!isSupabaseConfigured && (
+      {demo && (
         <p className="text-center text-xs leading-relaxed text-ink-faint">
-          Sign-in isn&rsquo;t wired to a backend yet — fill in <code className="text-ink-soft">.env</code> and
-          follow <code className="text-ink-soft">docs/09-auth-go-live.md</code>.
+          Google sign-in isn&rsquo;t connected yet, so this session lives in this browser
+          alone. Turning it on is <code className="text-ink-soft">docs/09-auth-go-live.md</code>.
         </p>
       )}
     </div>

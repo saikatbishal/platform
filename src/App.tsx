@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { IndiaMap } from '@/features/map/IndiaMap.tsx'
 import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
-import { useAuth } from '@/features/auth/useAuth.ts'
+import { useAuth } from '@/features/auth/AuthProvider.tsx'
 import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
 import { formatKm } from '@/lib/distance.ts'
@@ -14,6 +14,7 @@ export default function App() {
   const auth = useAuth()
 
   const signedIn = auth.status === 'signed-in'
+  const demo = auth.mode === 'demo'
   // Signed out, the app demos itself with sample journeys rather than showing
   // a wall. Once real data exists this becomes: signedIn ? journeys : SAMPLE.
   const journeys = SAMPLE_JOURNEYS
@@ -50,7 +51,11 @@ export default function App() {
               Log a journey in fifteen seconds and watch India fill in.
               The map behind this card is a preview with sample journeys.
             </p>
-            <SignInButton onSignIn={auth.signInWithGoogle} redirecting={auth.status === 'redirecting'} />
+            <SignInButton
+              mode={auth.mode}
+              onSignIn={auth.signIn}
+              redirecting={auth.status === 'redirecting'}
+            />
             {auth.error && (
               <p className="mt-2.5 mb-0 text-xs leading-relaxed text-vermillion">{auth.error}</p>
             )}
@@ -74,9 +79,11 @@ export default function App() {
             </span>
           </div>
         ))}
-        {!signedIn && (
+        {(demo || !signedIn) && (
           <div className="grid place-items-center border-l border-line bg-surface-2 px-3">
-            <span className="text-[0.6rem] font-semibold tracking-[0.13em] text-ink-faint uppercase">Sample</span>
+            <span className="text-[0.6rem] font-semibold tracking-[0.13em] text-ink-faint uppercase">
+              {signedIn ? 'Demo' : 'Sample'}
+            </span>
           </div>
         )}
       </section>
