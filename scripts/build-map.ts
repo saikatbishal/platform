@@ -48,6 +48,8 @@ const SOURCES = {
   districts: 'https://raw.githubusercontent.com/udit-001/india-maps-data/main/geojson/india.geojson',
   railroads: `${NE}/ne_10m_railroads.geojson`,
   places: `${NE}/ne_10m_populated_places.geojson`,
+  // 50m, not 10m: the only consumer is a ghost-opacity neighbour outline.
+  countries: `${NE}/ne_50m_admin_0_countries.geojson`,
 } as const
 
 /** Cache downloads in scripts/.cache so re-runs while tuning are instant. */
@@ -80,6 +82,7 @@ async function main() {
   const districts = await fetchCached(SOURCES.districts, 'districts.geojson')
   const railroads = await fetchCached(SOURCES.railroads, 'railroads.geojson')
   const places = await fetchCached(SOURCES.places, 'places.geojson')
+  const countries = await fetchCached(SOURCES.countries, 'countries.geojson')
 
   console.log('\n  building layers')
 
@@ -136,8 +139,18 @@ async function main() {
     }))
     .sort((a, b) => a.rank - b.rank || b.pop - a.pop)
 
+  // 6. Neighbours — Sri Lanka, drawn at ghost opacity so the southern sea
+  //    doesn't pretend the island isn't there. Sits in the sea layer, not the
+  //    land layer: it is scenery, never a state to unlock.
+  const neighbors = await run(
+    `-i countries.geojson -filter 'ADMIN === "Sri Lanka"' -filter-fields ADMIN ` +
+      '-simplify 20% keep-shapes -o format=topojson precision=0.0001 neighbors.topo.json',
+    { 'countries.geojson': countries },
+  )
+
   const files: Record<string, string> = {
     'outline.topo.json': outline['outline.topo.json']!,
+    'neighbors.topo.json': neighbors['neighbors.topo.json']!,
     'states.topo.json': states['states.topo.json']!,
     'districts.topo.json': districtsTopo['districts.topo.json']!,
     'rail.topo.json': rail['rail.topo.json']!,

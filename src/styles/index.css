@@ -82,13 +82,19 @@
   }
 }
 
-/* The wave glyphs in the sea bob a couple of map units, each on its own phase
-   (negative delays, set inline). The reduced-motion block above already stops
-   this; the ≈ button on the map pauses it for everyone else — an autoplaying
-   loop longer than 5 s needs an explicit stop (WCAG 2.2.2). */
-@keyframes sea-bob {
-  from { transform: translateY(0); }
-  to   { transform: translateY(2.4px); }
+/* The sea moves: wave glyphs sway sideways, the specks between them drift on
+   a different diagonal, each element on its own phase (negative delays, set
+   inline). The reduced-motion block above already stops all of it; the ≈
+   button on the map pauses it for everyone else — an autoplaying loop longer
+   than 5 s needs an explicit stop (WCAG 2.2.2). */
+@keyframes sea-sway {
+  from { transform: translate(-5px, 0); }
+  to   { transform: translate(5px, 1.5px); }
 }
-.sea-wave { animation: sea-bob 7s ease-in-out infinite alternate; }
-.sea-paused .sea-wave { animation-play-state: paused; }
+@keyframes sea-drift {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(4px, -3px); }
+}
+.sea-wave { animation: sea-sway 10s ease-in-out infinite alternate; }
+.sea-dot  { animation: sea-drift 12s ease-in-out infinite alternate; }
+.sea-paused :is(.sea-wave, .sea-dot) { animation-play-state: paused; }

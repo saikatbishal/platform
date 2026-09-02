@@ -89,11 +89,19 @@ graph, 70 KB gzipped. Details in `docs/05-data-pipeline.md` and
 ## Auth
 
 Google sign-in is fully built (frontend + `supabase/auth.sql`) and runs in
-**preview mode**: `.env` carries `YOUR_...` placeholders, `src/lib/supabase.ts`
-detects them, and the app shows sample journeys with a disabled sign-in button.
-Never "fix" the disabled button by hardcoding values — the switch-on procedure
-is `docs/09-auth-go-live.md`. `supabase` (the client) is `null` when
-unconfigured; guard any new usage.
+**demo mode** until `.env` holds real values: `src/lib/supabase.ts` treats
+anything containing `YOUR_` as unconfigured, and sign-in then opens a session
+that lives in this browser alone (`features/auth/demoSession.ts`). That exists
+so the signed-in half of the app is buildable before a backend is; it cannot
+appear in a build with real env values.
+
+Read auth through `useAuth()` from `features/auth/AuthProvider.tsx` — one
+subscription for the tree. `useAuthState()` is the implementation; calling it
+twice opens two Supabase listeners that can disagree.
+
+`supabase` (the client) is `null` when unconfigured; guard any new usage, and
+give the demo path a real implementation rather than an empty branch. The
+switch-on procedure is `docs/09-auth-go-live.md`.
 
 ## Current phase
 

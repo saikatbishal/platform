@@ -48,7 +48,12 @@ export interface MapData {
     graticule: string
     labels: Array<{ name: string; x: number; y: number }>
     waves: Array<{ x: number; y: number }>
+    /** Drifting specks scattered around the wave glyphs. */
+    dots: Array<{ x: number; y: number }>
   }
+  /** Neighbouring coastlines drawn as ghosts — scenery, never states to
+      unlock. Empty until `npm run map:build` has produced neighbors.topo.json. */
+  neighbors: string[]
 }
 
 interface RailProps { scalerank?: number }
@@ -87,12 +92,15 @@ export function useMapData(): { data: MapData | null; error: string | null } {
     let cancelled = false
 
     async function load() {
-      const [statesTopo, railTopo, cities, stations, wire] = await Promise.all([
+      const [statesTopo, railTopo, cities, stations, wire, neighborsTopo] = await Promise.all([
         getJson<Topology>('maps/states.topo.json'),
         getJson<Topology>('maps/rail.topo.json'),
         getJson<City[]>('maps/cities.json'),
         getJson<Station[]>('data/stations.json'),
         getJson<RailGraphWire>('maps/railgraph.json'),
+        // Optional: an assets build from before this layer existed simply has
+        // no ghost neighbours, rather than no map at all.
+        getJson<Topology>('maps/neighbors.topo.json').catch(() => null),
       ])
       if (cancelled) return
 
@@ -147,6 +155,26 @@ export function useMapData(): { data: MapData | null; error: string | null } {
         const p = projection([lon, lat])
         if (p) waves.push({ x: p[0], y: p[1] })
       }
+      // Three specks near each wave glyph, jittered deterministically — random
+      // would reshuffle the sea on every reload.
+      const dots: MapData['sea']['dots'] = []
+      waves.forEach((w, i) => {
+        ([[19, -11], [-15, 16], [7, 27]] as const).forEach(([dx, dy], j) => {
+          dots.push({
+            x: w.x + dx + ((i * 7 + j * 13) % 11) - 5,
+            y: w.y + dy + ((i * 5 + j * 3) % 9) - 4,
+          })
+        })
+      })
+
+      const neighbors: string[] = []
+      if (neighborsTopo) {
+        const fc = feature(neighborsTopo, firstObject(neighborsTopo)) as FeatureCollection<Geometry>
+        for (const f of fc.features) {
+          const d = round(path(f))
+          if (d) neighbors.push(d)
+        }
+      }
 
       setData({
         states: statePaths,
@@ -157,7 +185,8 @@ export function useMapData(): { data: MapData | null; error: string | null } {
         stations,
         byCode,
         graph: parseRailGraph(wire),
-        sea: { graticule, labels: seaLabels, waves },
+        sea: { graticule, labels: seaLabels, waves, dots },
+        neighbors,
       })
     }
 
