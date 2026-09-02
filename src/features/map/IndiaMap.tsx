@@ -36,9 +36,18 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const tierRef = useRef(tier)
   tierRef.current = tier
 
+  // WCAG 2.2.2: the wave glyphs loop indefinitely, so the ≈ button can stop
+  // them. prefers-reduced-motion is handled globally in index.css.
+  const [seaStill, setSeaStill] = useState(false)
+
   // Expand every journey into the stations its train actually calls at. A
   // two-point line does not follow the railway: on the Vijayawada–Chennai leg
   // it spends 75% of its length over the Bay of Bengal.
+  // Every state outline as one path, for the coastal waterlining. Stroked
+  // BELOW the opaque land, so the internal state borders never show — only
+  // the half of each stroke that reaches out over the sea survives.
+  const coastD = useMemo(() => (data ? data.states.map((s) => s.d).join('') : ''), [data])
+
   const routes = useMemo(() => {
     if (!data) return []
     return journeys.flatMap((j) => {
@@ -178,10 +187,89 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const cityCount = tier.cityCount
 
   return (
-    <div ref={stage} className="absolute inset-0 touch-none [cursor:grab] active:[cursor:grabbing]">
-      {/* land — opaque, so it must sit below the station field */}
+    <div
+      ref={stage}
+      className={`absolute inset-0 touch-none bg-sea [cursor:grab] active:[cursor:grabbing]${seaStill ? ' sea-paused' : ''}`}
+    >
+      {/* sea and land — opaque land, so it must sit below the station field.
+          Everything drawn on the water goes first: the land painted after it
+          hides the graticule and the inner half of the waterlines inland. */}
       <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
         <g ref={baseG}>
+          <path
+            d={data.sea.graticule}
+            fill="none"
+            strokeWidth={1}
+            strokeOpacity={0.16}
+            className="stroke-sea-ink [vector-effect:non-scaling-stroke]"
+          />
+          {/* neighbouring coastlines as ghosts — scenery, not states */}
+          {data.neighbors.map((d, i) => (
+            <path
+              key={i}
+              d={d}
+              fillOpacity={0.1}
+              strokeOpacity={0.3}
+              strokeWidth={0.8}
+              className="fill-sea-ink stroke-sea-ink [vector-effect:non-scaling-stroke]"
+            />
+          ))}
+          {/* coastal waterlining, the engraved-chart way: the same coast
+              stroked three times, wide and faint to narrow and firm */}
+          {([[11, 0.08], [6.5, 0.16], [2.8, 0.3]] as const).map(([w, o]) => (
+            <path
+              key={w}
+              d={coastD}
+              fill="none"
+              strokeWidth={w}
+              strokeOpacity={o}
+              strokeLinejoin="round"
+              className="stroke-sea-ink [vector-effect:non-scaling-stroke]"
+            />
+          ))}
+          {tier.sea && (
+            <g>
+              {data.sea.waves.map((p, i) => (
+                <g key={i} transform={`translate(${p.x},${p.y})`}>
+                  <path
+                    d="M-11,0 Q-5.5,-5 0,0 T11,0"
+                    fill="none"
+                    strokeWidth={1.2}
+                    strokeOpacity={0.5}
+                    strokeLinecap="round"
+                    className="sea-wave stroke-sea-ink [vector-effect:non-scaling-stroke]"
+                    style={{ animationDelay: `${-(i * 2.1) % 10}s`, animationDuration: `${9 + (i % 3) * 2}s` }}
+                  />
+                </g>
+              ))}
+              {data.sea.dots.map((p, i) => (
+                <circle
+                  key={i}
+                  cx={p.x}
+                  cy={p.y}
+                  r={1.3}
+                  fillOpacity={0.35}
+                  className="sea-dot fill-sea-ink"
+                  style={{ animationDelay: `${-(i * 2.3) % 12}s`, animationDuration: `${10 + (i % 4) * 2}s` }}
+                />
+              ))}
+              {data.sea.labels.map((l) => (
+                <text
+                  key={l.name}
+                  x={l.x}
+                  y={l.y}
+                  textAnchor="middle"
+                  fontSize={15}
+                  fontStyle="italic"
+                  letterSpacing="0.35em"
+                  opacity={0.75}
+                  className="fill-sea-ink uppercase"
+                >
+                  {l.name}
+                </text>
+              ))}
+            </g>
+          )}
           {data.states.map((s) => (
             <path
               key={s.name}
@@ -270,7 +358,10 @@ export function IndiaMap({ journeys, onStats }: Props) {
         <button type="button" onClick={() => zoomBy(1 / 1.6)} aria-label="Zoom out"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">−</button>
         <button type="button" onClick={reset} aria-label="Fit the whole country"
-          className="h-10 w-10 text-[0.6rem] font-semibold tracking-[0.1em] text-ink-soft uppercase hover:bg-surface-2 hover:text-accent">Fit</button>
+          className="h-10 w-10 border-b border-line text-[0.6rem] font-semibold tracking-[0.1em] text-ink-soft uppercase hover:bg-surface-2 hover:text-accent">Fit</button>
+        <button type="button" onClick={() => setSeaStill((s) => !s)} aria-pressed={seaStill}
+          aria-label={seaStill ? 'Let the sea move again' : 'Hold the sea still'}
+          className={`h-10 w-10 text-ink-soft hover:bg-surface-2 hover:text-accent${seaStill ? ' opacity-45' : ''}`}>≈</button>
       </div>
     </div>
   )

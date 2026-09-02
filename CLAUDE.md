@@ -14,6 +14,11 @@ brief. Correctness matters, but so does whether an animation is 80 ms too slow.
 
 ## Read first
 
+**`HANDOVER.md` is the session-to-session state file** — current build status,
+known debts, next actions, and links to the published pages. Read it before
+this list; update it (and `CHANGELOG.md`) at the end of any session that
+changes state.
+
 - `docs/00-decisions.md` — every stack choice and its reason. **Do not introduce a
   dependency or pattern that contradicts this without saying so explicitly.**
 - `docs/03-project-spec.md` — scope, and the list of things deliberately excluded.
@@ -80,6 +85,23 @@ graph, 70 KB gzipped. Details in `docs/05-data-pipeline.md` and
 - Coordinates are `[lon, lat]` in GeoJSON order everywhere. This is easy to get
   backwards and produces a map of the Indian Ocean when you do.
 - Stats are derived, never stored.
+
+## Auth
+
+Google sign-in is fully built (frontend + `supabase/auth.sql`) and runs in
+**demo mode** until `.env` holds real values: `src/lib/supabase.ts` treats
+anything containing `YOUR_` as unconfigured, and sign-in then opens a session
+that lives in this browser alone (`features/auth/demoSession.ts`). That exists
+so the signed-in half of the app is buildable before a backend is; it cannot
+appear in a build with real env values.
+
+Read auth through `useAuth()` from `features/auth/AuthProvider.tsx` — one
+subscription for the tree. `useAuthState()` is the implementation; calling it
+twice opens two Supabase listeners that can disagree.
+
+`supabase` (the client) is `null` when unconfigured; guard any new usage, and
+give the demo path a real implementation rather than an empty branch. The
+switch-on procedure is `docs/09-auth-go-live.md`.
 
 ## Current phase
 

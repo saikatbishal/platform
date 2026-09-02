@@ -28,6 +28,8 @@
   --color-land: var(--land);
   --color-land-visited: var(--land-visited);
   --color-dot: var(--dot);
+  --color-sea: var(--sea);
+  --color-sea-ink: var(--sea-ink);
 
   --color-route-taken: var(--route-taken);
   --color-route-planned: var(--route-planned);
@@ -79,3 +81,20 @@
     }
   }
 }
+
+/* The sea moves: wave glyphs sway sideways, the specks between them drift on
+   a different diagonal, each element on its own phase (negative delays, set
+   inline). The reduced-motion block above already stops all of it; the ≈
+   button on the map pauses it for everyone else — an autoplaying loop longer
+   than 5 s needs an explicit stop (WCAG 2.2.2). */
+@keyframes sea-sway {
+  from { transform: translate(-5px, 0); }
+  to   { transform: translate(5px, 1.5px); }
+}
+@keyframes sea-drift {
+  from { transform: translate(0, 0); }
+  to   { transform: translate(4px, -3px); }
+}
+.sea-wave { animation: sea-sway 10s ease-in-out infinite alternate; }
+.sea-dot  { animation: sea-drift 12s ease-in-out infinite alternate; }
+.sea-paused :is(.sea-wave, .sea-dot) { animation-play-state: paused; }
