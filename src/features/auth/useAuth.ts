@@ -131,7 +131,10 @@ export function useAuthState(): AuthState {
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin,
+        // window.location.origin alone drops the /platform base path this
+        // app is served under (vite.config.ts), so Google/Supabase would
+        // redirect back to the portfolio site's root instead of here.
+        redirectTo: window.location.origin + import.meta.env.BASE_URL,
         queryParams: {
           // Skip re-consent for returning users: sign-in in two clicks, not five.
           access_type: 'online',

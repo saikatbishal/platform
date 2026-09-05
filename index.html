@@ -4,9 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
     <title>Platform</title>
     <meta name="description" content="Your rail journeys, drawn on a map of India." />
+
+    <!-- The share card is a station board hung under a lit canopy — drawn,
+         not photographed, and generated from docs/brand/og.svg. Absolute URL
+         because Vite rewrites href/src for the /platform/ base but not meta
+         content, and every scraper needs it absolute anyway. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Platform" />
+    <meta property="og:description" content="Your rail journeys, drawn on a map of India." />
+    <meta property="og:url" content="https://saikatbishal.com/platform/" />
+    <meta property="og:image" content="https://saikatbishal.com/platform/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="A yellow Indian Railways station name board reading Platform, hanging under a lit platform canopy at night." />
+    <meta name="twitter:card" content="summary_large_image" />
 
     <!-- Dark is the primary theme. Declaring it here stops the white flash
          before CSS loads, which is the most visible flaw in a dark app. -->
@@ -14,6 +29,19 @@
     <meta name="theme-color" content="#0A1C33" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#F4F1EA" media="(prefers-color-scheme: light)" />
     <style>html { background: #0A1C33 } @media (prefers-color-scheme: light) { html { background: #F4F1EA } }</style>
+    <!-- The theme is the time of day (src/features/theme/timeOfDay.ts), and
+         it has to be stamped before the first paint or every load after dusk
+         flashes the day palette — the same flaw the block above exists to
+         prevent, arriving by a different route. React confirms this on mount
+         and takes over the 06:00/18:00 boundary from there. The two hexes are
+         --ground from src/styles/tokens.css, repeated here for the same reason
+         the ones above are: nothing has parsed the CSS yet. -->
+    <script>
+      var h = new Date().getHours()
+      var dark = h < 6 || h >= 18
+      document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light')
+      document.documentElement.style.background = dark ? '#0A1C33' : '#F4F1EA'
+    </script>
   </head>
   <body>
     <div id="root"></div>

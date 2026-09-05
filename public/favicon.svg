@@ -1,7 +1,17 @@
+<!-- The mark is the station board itself, hung from its bracket: the same
+     object the sign-in placard is, so the tab, the home screen and the app
+     agree. Paint values are the board tokens from src/styles/tokens.css and
+     do not follow the theme, because a board doesn't.
+     Regenerate the PNG icons from docs/brand/icon.svg — see docs/brand/README.md. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <rect width="32" height="32" rx="4" fill="#0A1C33"/>
-  <path d="M6 24 L13 16 L19 19 L26 8" fill="none" stroke="#EAB143" stroke-width="2.6"
+  <rect x="8" y="7.5" width="16" height="1.2" rx="0.4" fill="#6E645A"/>
+  <rect x="12.4" y="8.7" width="1" height="3.6" fill="#6E645A"/>
+  <rect x="18.6" y="8.7" width="1" height="3.6" fill="#6E645A"/>
+  <rect x="4.5" y="11.8" width="23" height="11.2" rx="1" fill="#EAB143"/>
+  <rect x="5.9" y="13.2" width="20.2" height="8.4" rx="0.5" fill="none" stroke="#F7F3EA" stroke-width="1"/>
+  <path d="M8.8 19.6 L12.8 15.4 L16.8 17.6 L23.2 14.4" fill="none" stroke="#12283F" stroke-width="1.5"
         stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="6" cy="24" r="2.6" fill="#EAB143"/>
-  <circle cx="26" cy="8" r="3" fill="#E85C50"/>
+  <circle cx="8.8" cy="19.6" r="1.2" fill="#12283F"/>
+  <circle cx="23.2" cy="14.4" r="1.5" fill="#DC3A31"/>
 </svg>

@@ -50,9 +50,9 @@ export function SignInButton({ mode, onSignIn, redirecting }: Props) {
           })
         }}
         className="flex min-h-11 items-center justify-center gap-3 rounded-sm border border-line-strong
-                   bg-surface px-5 py-2.5 font-semibold text-ink
+                   w-full bg-surface-2 px-5 py-2.5 font-semibold text-ink
                    transition-[background-color,border-color] duration-150
-                   hover:bg-surface-2 active:bg-surface-2
+                   hover:bg-line active:bg-line
                    disabled:cursor-not-allowed disabled:opacity-60"
       >
         {!demo && <GoogleG />}

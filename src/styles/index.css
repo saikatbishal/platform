@@ -31,6 +31,11 @@
   --color-sea: var(--sea);
   --color-sea-ink: var(--sea-ink);
 
+  --color-board: var(--board);
+  --color-board-ink: var(--board-ink);
+  --color-board-edge: var(--board-edge);
+  --color-board-frame: var(--board-frame);
+
   --color-route-taken: var(--route-taken);
   --color-route-planned: var(--route-planned);
   --color-route-idle: var(--route-idle);
