@@ -3,7 +3,7 @@ import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/projection.ts'
 import { LOD_TIERS, tierFor, type LodTier } from './lod.ts'
 import { usePanZoom, type View } from './usePanZoom.ts'
 import { useMapData } from './useMapData.ts'
-import { drawStationField } from './stationField.ts'
+import { drawStationField, drawStationLabels } from './stationField.ts'
 import { placeLabels, type LabelCandidate } from './labels.ts'
 import { routeForJourney } from './route.ts'
 import type { Journey } from '@/types/index.ts'
@@ -38,13 +38,6 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const [tier, setTier] = useState<LodTier>(LOD_TIERS[0]!)
   const tierRef = useRef(tier)
   tierRef.current = tier
-
-  const viewRef = useRef<View>({ x: 0, y: 0, k: 1 })
-  // The name badge for whichever station dot the pointer is over. Only ever
-  // set once zoomed in enough to have named stops (LodTier.stationLabels) —
-  // at country zoom the dots are a texture, not individually pickable.
-  const [hoverStation, setHoverStation] = useState<{ name: string; sx: number; sy: number } | null>(null)
-  const hoverCodeRef = useRef<string | null>(null)
 
   // WCAG 2.2.2: the wave glyphs loop indefinitely, so the ≈ button can stop
   // them. prefers-reduced-motion is handled globally in index.css.
@@ -103,13 +96,37 @@ export function IndiaMap({ journeys, onStats }: Props) {
   }, [data, routes, visitedStates, onStats])
 
   // Label candidates: cities by importance first, then journey endpoints.
+  // These mount as SVG <text> — a bounded few hundred, same as before.
   const labelCandidates = useMemo<LabelCandidate[]>(() => {
     if (!data) return []
     return [
-      ...data.cities.map((c) => ({ name: c.name, x: c.x, y: c.y })),
-      ...endpoints.map((e) => ({ name: e.name, x: e.x, y: e.y })),
+      ...data.cities.map((c) => ({ name: c.name, x: c.x, y: c.y, kind: 'city' as const })),
+      ...endpoints.map((e) => ({ name: e.name, x: e.x, y: e.y, kind: 'endpoint' as const })),
     ]
   }, [data, endpoints])
+
+  // Every station, named. Computed once from `data` — NOT gated on
+  // tier.stationLabels here, on purpose: onFrame reads that gate live off
+  // tierRef instead, so this array's identity (and onFrame's) stays stable
+  // across a tier crossing. It briefly depended on tier and that broke
+  // zooming — usePanZoom's setup effect re-runs whenever onFrame's identity
+  // changes, and that effect calls fitToViewport(), snapping the view back
+  // to the fit scale on every tier boundary.
+  //
+  // Not mounted as SVG either way: unlike the bounded list above, this is
+  // the same 8,696 stations as the canvas dots, so it's drawn on that same
+  // canvas (see onFrame) rather than as 8,696 more DOM nodes.
+  const stationLabelCandidates = useMemo<LabelCandidate[]>(() => {
+    if (!data) return []
+    return [...data.byCode.values()].map((s) => ({ name: s.name, x: s.x, y: s.y, kind: 'station' as const }))
+  }, [data])
+
+  // One combined list so city/endpoint labels — listed first — always win
+  // the collision check over a station label at the same spot.
+  const allLabelCandidates = useMemo(
+    () => [...labelCandidates, ...stationLabelCandidates],
+    [labelCandidates, stationLabelCandidates],
+  )
 
   /**
    * Everything that happens per frame is written straight to the DOM. Putting
@@ -119,13 +136,19 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const onFrame = useCallback((view: View) => {
     const el = stage.current
     if (!el || !data) return
-    viewRef.current = view
     const transform = `translate(${view.x.toFixed(2)},${view.y.toFixed(2)}) scale(${view.k.toFixed(5)})`
     baseG.current?.setAttribute('transform', transform)
     railG.current?.setAttribute('transform', transform)
     overG.current?.setAttribute('transform', transform)
 
     const width = el.clientWidth, height = el.clientHeight
+    const inverse = 1 / view.k
+
+    // One collision pass for every label — cities/endpoints first, so a
+    // station never displaces one of them from a shared spot.
+    const candidates = tierRef.current.stationLabels ? allLabelCandidates : labelCandidates
+    const placed = placeLabels(candidates, view, { width, height })
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2)
     const c = canvas.current
     if (c) {
@@ -133,13 +156,16 @@ export function IndiaMap({ journeys, onStats }: Props) {
       if (c.width !== w || c.height !== h) { c.width = w; c.height = h }
       const ctx = c.getContext('2d')
       if (ctx) {
-        const colour = getComputedStyle(el).getPropertyValue('--dot').trim() || '#7E93A6'
-        drawStationField(ctx, data.stationXY, view, { width, height, dpr }, tierRef.current.stationRadius, colour)
+        const dotColour = getComputedStyle(el).getPropertyValue('--dot').trim() || '#7E93A6'
+        drawStationField(ctx, data.stationXY, view, { width, height, dpr }, tierRef.current.stationRadius, dotColour)
+        if (tierRef.current.stationLabels) {
+          const textColour = getComputedStyle(el).getPropertyValue('--ink-faint').trim() || '#7791A8'
+          const haloColour = getComputedStyle(el).getPropertyValue('--ground').trim() || '#0A1C33'
+          drawStationLabels(ctx, placed.filter((p) => p.kind === 'station'), textColour, haloColour)
+        }
       }
     }
 
-    const inverse = 1 / view.k
-    const placed = placeLabels(labelCandidates, view, { width, height })
     const visible = new Set(placed.map((p) => p.name))
     labelRefs.current.forEach((g, i) => {
       const cand = labelCandidates[i]
@@ -153,58 +179,14 @@ export function IndiaMap({ journeys, onStats }: Props) {
     stopRefs.current.forEach((circle, i) => {
       circle?.setAttribute('r', String((endpoints[i]?.last ? 5.5 : 4) * inverse))
     })
-  }, [data, labelCandidates, endpoints])
+  }, [data, allLabelCandidates, labelCandidates, endpoints])
 
   const onZoomSettled = useCallback((relative: number) => {
     const next = tierFor(relative)
     setTier((prev) => (prev === next ? prev : next))
-    if (!next.stationLabels && hoverCodeRef.current !== null) {
-      hoverCodeRef.current = null
-      setHoverStation(null)
-    }
   }, [])
 
   const { zoomBy, reset } = usePanZoom(stage, { onFrame, onZoomSettled })
-
-  /**
-   * Which station dot, if any, is under the pointer — so hovering one can
-   * name it. Skipped below `stationLabels` zoom, where dots are a texture of
-   * a few pixels each and nothing is individually pickable. Skipped while a
-   * button/finger is down too: that's a pan or pinch in progress, and
-   * setting state on every one of those pointermoves would re-render the
-   * tree mid-drag, which is exactly what the view-in-a-ref design avoids.
-   */
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    if (!data || !tierRef.current.stationLabels || e.buttons !== 0) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const mx = e.clientX - rect.left
-    const my = e.clientY - rect.top
-    const { x, y, k } = viewRef.current
-    const hitR = 9
-    let best: { code: string; name: string; sx: number; sy: number; d2: number } | null = null
-    for (const s of data.byCode.values()) {
-      const sx = s.x * k + x
-      const sy = s.y * k + y
-      const dx = sx - mx, dy = sy - my
-      if (dx < -hitR || dx > hitR || dy < -hitR || dy > hitR) continue
-      const d2 = dx * dx + dy * dy
-      if (d2 <= hitR * hitR && (!best || d2 < best.d2)) best = { code: s.code, name: s.name, sx, sy, d2 }
-    }
-    if (best) {
-      hoverCodeRef.current = best.code
-      setHoverStation({ name: best.name, sx: best.sx, sy: best.sy })
-    } else if (hoverCodeRef.current !== null) {
-      hoverCodeRef.current = null
-      setHoverStation(null)
-    }
-  }, [data])
-
-  const onPointerLeave = useCallback(() => {
-    if (hoverCodeRef.current !== null) {
-      hoverCodeRef.current = null
-      setHoverStation(null)
-    }
-  }, [])
 
   // Rail visibility and stroke width follow the tier, not every frame.
   useEffect(() => {
@@ -245,8 +227,6 @@ export function IndiaMap({ journeys, onStats }: Props) {
   return (
     <div
       ref={stage}
-      onPointerMove={onPointerMove}
-      onPointerLeave={onPointerLeave}
       className={`absolute inset-0 touch-none bg-sea [cursor:grab] active:[cursor:grabbing]${seaStill ? ' sea-paused' : ''}`}
     >
       {/* sea and land — opaque land, so it must sit below the station field.
@@ -396,7 +376,7 @@ export function IndiaMap({ journeys, onStats }: Props) {
 
           <g>
             {labelCandidates.map((c, i) => {
-              const isCity = i < data.cities.length
+              const isCity = c.kind === 'city'
               if (isCity && i >= cityCount) return null
               return (
                 <g key={`${c.name}-${i}`} ref={(el) => { labelRefs.current[i] = el }}
@@ -415,15 +395,6 @@ export function IndiaMap({ journeys, onStats }: Props) {
           </g>
         </g>
       </svg>
-
-      {hoverStation && (
-        <div
-          className="pointer-events-none absolute z-10 rounded-sm border border-line bg-surface px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-ink"
-          style={{ left: hoverStation.sx, top: hoverStation.sy, transform: 'translate(-50%, -145%)' }}
-        >
-          {hoverStation.name}
-        </div>
-      )}
 
       <div className="pointer-events-auto absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-sm border border-line bg-surface">
         <button type="button" onClick={() => zoomBy(1.6)} aria-label="Zoom in"

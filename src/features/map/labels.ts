@@ -11,6 +11,10 @@ export interface LabelCandidate {
   /** Map-space position. */
   x: number
   y: number
+  /** Caller-defined role, carried through to PlacedLabel. Ignored here —
+      this module only does geometry — but it's how a caller mixing several
+      kinds of label in one collision pass tells the results back apart. */
+  kind: 'city' | 'endpoint' | 'station'
 }
 
 export interface PlacedLabel extends LabelCandidate {
