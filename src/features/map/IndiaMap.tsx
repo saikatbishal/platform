@@ -17,15 +17,18 @@ interface Props {
 /**
  * The map.
  *
- * Three stacked layers, and the order matters: land is opaque, so the station
- * field has to sit ABOVE it, with rail, routes and labels above that. Putting
- * the canvas underneath — the obvious "backdrop" instinct — hides the station
- * dots everywhere except over the sea.
+ * Four stacked layers, and the order matters: land is opaque, so the idle
+ * rail network has to sit above it, the station field above that (so dots
+ * read as the texture, not the track), and routes/endpoints/labels above the
+ * dots (so a travelled line and its names stay legible over the texture).
+ * Putting the canvas underneath the land — the obvious "backdrop" instinct —
+ * hides the station dots everywhere except over the sea.
  */
 export function IndiaMap({ journeys, onStats }: Props) {
   const { data, error } = useMapData()
   const stage = useRef<HTMLDivElement>(null)
   const baseG = useRef<SVGGElement>(null)
+  const railG = useRef<SVGGElement>(null)
   const overG = useRef<SVGGElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const labelRefs = useRef<Array<SVGGElement | null>>([])
@@ -35,6 +38,13 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const [tier, setTier] = useState<LodTier>(LOD_TIERS[0]!)
   const tierRef = useRef(tier)
   tierRef.current = tier
+
+  const viewRef = useRef<View>({ x: 0, y: 0, k: 1 })
+  // The name badge for whichever station dot the pointer is over. Only ever
+  // set once zoomed in enough to have named stops (LodTier.stationLabels) —
+  // at country zoom the dots are a texture, not individually pickable.
+  const [hoverStation, setHoverStation] = useState<{ name: string; sx: number; sy: number } | null>(null)
+  const hoverCodeRef = useRef<string | null>(null)
 
   // WCAG 2.2.2: the wave glyphs loop indefinitely, so the ≈ button can stop
   // them. prefers-reduced-motion is handled globally in index.css.
@@ -109,8 +119,10 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const onFrame = useCallback((view: View) => {
     const el = stage.current
     if (!el || !data) return
+    viewRef.current = view
     const transform = `translate(${view.x.toFixed(2)},${view.y.toFixed(2)}) scale(${view.k.toFixed(5)})`
     baseG.current?.setAttribute('transform', transform)
+    railG.current?.setAttribute('transform', transform)
     overG.current?.setAttribute('transform', transform)
 
     const width = el.clientWidth, height = el.clientHeight
@@ -146,9 +158,53 @@ export function IndiaMap({ journeys, onStats }: Props) {
   const onZoomSettled = useCallback((relative: number) => {
     const next = tierFor(relative)
     setTier((prev) => (prev === next ? prev : next))
+    if (!next.stationLabels && hoverCodeRef.current !== null) {
+      hoverCodeRef.current = null
+      setHoverStation(null)
+    }
   }, [])
 
   const { zoomBy, reset } = usePanZoom(stage, { onFrame, onZoomSettled })
+
+  /**
+   * Which station dot, if any, is under the pointer — so hovering one can
+   * name it. Skipped below `stationLabels` zoom, where dots are a texture of
+   * a few pixels each and nothing is individually pickable. Skipped while a
+   * button/finger is down too: that's a pan or pinch in progress, and
+   * setting state on every one of those pointermoves would re-render the
+   * tree mid-drag, which is exactly what the view-in-a-ref design avoids.
+   */
+  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!data || !tierRef.current.stationLabels || e.buttons !== 0) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mx = e.clientX - rect.left
+    const my = e.clientY - rect.top
+    const { x, y, k } = viewRef.current
+    const hitR = 9
+    let best: { code: string; name: string; sx: number; sy: number; d2: number } | null = null
+    for (const s of data.byCode.values()) {
+      const sx = s.x * k + x
+      const sy = s.y * k + y
+      const dx = sx - mx, dy = sy - my
+      if (dx < -hitR || dx > hitR || dy < -hitR || dy > hitR) continue
+      const d2 = dx * dx + dy * dy
+      if (d2 <= hitR * hitR && (!best || d2 < best.d2)) best = { code: s.code, name: s.name, sx, sy, d2 }
+    }
+    if (best) {
+      hoverCodeRef.current = best.code
+      setHoverStation({ name: best.name, sx: best.sx, sy: best.sy })
+    } else if (hoverCodeRef.current !== null) {
+      hoverCodeRef.current = null
+      setHoverStation(null)
+    }
+  }, [data])
+
+  const onPointerLeave = useCallback(() => {
+    if (hoverCodeRef.current !== null) {
+      hoverCodeRef.current = null
+      setHoverStation(null)
+    }
+  }, [])
 
   // Rail visibility and stroke width follow the tier, not every frame.
   useEffect(() => {
@@ -189,6 +245,8 @@ export function IndiaMap({ journeys, onStats }: Props) {
   return (
     <div
       ref={stage}
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
       className={`absolute inset-0 touch-none bg-sea [cursor:grab] active:[cursor:grabbing]${seaStill ? ' sea-paused' : ''}`}
     >
       {/* sea and land — opaque land, so it must sit below the station field.
@@ -285,30 +343,36 @@ export function IndiaMap({ journeys, onStats }: Props) {
         </g>
       </svg>
 
+      {/* the idle rail network — its own layer so it sits BELOW the station
+          field: the dots are what you're meant to notice at this zoom, the
+          track underneath them is context. */}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true">
+        <g ref={railG}>
+          {data.rail.map((r, i) => (
+            <path
+              key={i}
+              ref={(el) => { railRefs.current[i] = el }}
+              d={r.d}
+              fill="none"
+              className="stroke-route-idle [vector-effect:non-scaling-stroke]"
+              strokeWidth={r.rank <= 6 ? 0.9 : 0.6}
+              strokeLinecap="round"
+            />
+          ))}
+        </g>
+      </svg>
+
       {/* the 8,696-station field */}
       <canvas ref={canvas} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
 
-      {/* rail, routes and labels */}
+      {/* routes and labels — above the dots, so a travelled line and its
+          station names stay readable over the texture rather than under it */}
       <svg
         className="pointer-events-none absolute inset-0 h-full w-full"
         role="img"
         aria-label={`Map of India showing ${data.stations.length.toLocaleString()} railway stations and ${journeys.length} logged journeys.`}
       >
         <g ref={overG}>
-          <g>
-            {data.rail.map((r, i) => (
-              <path
-                key={i}
-                ref={(el) => { railRefs.current[i] = el }}
-                d={r.d}
-                fill="none"
-                className="stroke-route-idle [vector-effect:non-scaling-stroke]"
-                strokeWidth={r.rank <= 6 ? 0.9 : 0.6}
-                strokeLinecap="round"
-              />
-            ))}
-          </g>
-
           <g>
             {routes.map((r) => (
               <path key={`halo-${r.id}`} d={r.d} fill="none"
@@ -351,6 +415,15 @@ export function IndiaMap({ journeys, onStats }: Props) {
           </g>
         </g>
       </svg>
+
+      {hoverStation && (
+        <div
+          className="pointer-events-none absolute z-10 rounded-sm border border-line bg-surface px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-ink"
+          style={{ left: hoverStation.sx, top: hoverStation.sy, transform: 'translate(-50%, -145%)' }}
+        >
+          {hoverStation.name}
+        </div>
+      )}
 
       <div className="pointer-events-auto absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-sm border border-line bg-surface">
         <button type="button" onClick={() => zoomBy(1.6)} aria-label="Zoom in"

@@ -4,6 +4,7 @@ import type { Topology, GeometryCollection } from 'topojson-specification'
 import type { FeatureCollection, Geometry } from 'geojson'
 import { geoPath, geoGraticule } from 'd3-geo'
 import { createIndiaProjection, MAP_WIDTH, MAP_HEIGHT } from '@/lib/projection.ts'
+import { smoothGeoPath } from '@/lib/smoothPath.ts'
 import { parseRailGraph, type RailGraph, type RailGraphWire } from './route.ts'
 import type { Station } from '@/types/index.ts'
 
@@ -112,9 +113,14 @@ export function useMapData(): { data: MapData | null; error: string | null } {
 
       const railFc = feature(railTopo, firstObject(railTopo)) as FeatureCollection<Geometry, RailProps>
 
+      // Smoothed, not the plain straight-segment `path()` used below: the
+      // simplify pass in build-map.ts leaves state borders as sparse
+      // vertices, which read as a polygon instead of a coastline once you
+      // zoom in. smoothGeoPath fits a curve through the same points instead
+      // of connecting them with straight lines.
       const statePaths: MapData['states'] = []
       for (const f of statesFc.features) {
-        const d = round(path(f))
+        const d = round(smoothGeoPath(projection, f))
         if (d) statePaths.push({ name: f.properties?.st_nm ?? '', d })
       }
 
