@@ -75,6 +75,17 @@ async function run(commands: string, input: Record<string, string>): Promise<Rec
   return (await mapshaper.applyCommands(commands, input)) as Record<string, string>
 }
 
+/**
+ * Uniform simplification wrecks the island territories: they are ~90 of the
+ * source's 25,000 vertices, so at 5% the Andamans collapse to one triangle in
+ * the Bay of Bengal and the Nicobars vanish. `keep-shapes` only protects one
+ * ring per feature. Keep every island vertex; it costs about 1 KB.
+ */
+function simplify(mainlandPct: number): string {
+  const islands = 'st_nm == "Andaman and Nicobar Islands" || st_nm == "Lakshadweep"'
+  return `-simplify keep-shapes variable percentage='${islands} ? 1 : ${mainlandPct}'`
+}
+
 async function main() {
   console.log('\nbuild-map\n')
   await mkdir(OUT, { recursive: true })
@@ -87,10 +98,9 @@ async function main() {
   console.log('\n  building layers')
 
   // 1. States — dissolve 760 districts up to 36 states/UTs.
-  //    keep-shapes stops simplification from deleting small union territories.
   const states = await run(
-    '-i districts.geojson -dissolve2 st_nm -filter-fields st_nm ' +
-      '-simplify 5% keep-shapes -o format=topojson precision=0.0001 states.topo.json',
+    `-i districts.geojson -dissolve2 st_nm -filter-fields st_nm ${simplify(0.05)} ` +
+      '-o format=topojson precision=0.0001 states.topo.json',
     { 'districts.geojson': districts },
   )
 
@@ -107,7 +117,7 @@ async function main() {
 
   // 3. Districts — for the deepest zoom. Lazy-loaded, never in the first paint.
   const districtsTopo = await run(
-    '-i districts.geojson -filter-fields district,st_nm -simplify 6% keep-shapes ' +
+    `-i districts.geojson -filter-fields district,st_nm ${simplify(0.06)} ` +
       '-o format=topojson precision=0.0001 districts.topo.json',
     { 'districts.geojson': districts },
   )
