@@ -46,6 +46,19 @@
   --sea:           #081D2B;
   --sea-ink:       #4D7A8C;
 
+  /* ---- the station board -------------------------------------------------
+     A painted metal object, not a UI surface. Its paint does not change when
+     the page theme does: an Alwar Junction board is the same yellow at noon
+     and at 2 a.m., and the whole point of the placard is that it is the real
+     thing sitting on the page. So these four are declared ONCE, at :root, and
+     deliberately absent from both theme blocks below — the one exception to
+     palette rule 4, and the reason is that they are paint, not palette.
+     Navy on this yellow measures 7.8:1. */
+  --board:        #EAB143;   /* board yellow, full strength, both themes */
+  --board-ink:    #12283F;   /* the navy the letters are stencilled in */
+  --board-edge:   #F7F3EA;   /* the white enamel border around every board */
+  --board-frame:  #6E645A;   /* the bracket and posts it hangs from */
+
   /* map semantics — derived, so intent is in one place */
   --route-taken:   var(--accent);
   --route-planned: var(--oxide);

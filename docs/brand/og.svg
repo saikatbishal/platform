@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+<defs><radialGradient id="glow"><stop offset="0" stop-color="#EAB143" stop-opacity="0.30"/><stop offset="1" stop-color="#EAB143" stop-opacity="0"/></radialGradient></defs>
+<rect width="1200" height="630" fill="#0A1C33"/>
+<path d="M-20 114 L600 48 L1220 114 L1220 134 L600 68 L-20 134 Z" fill="#A3988F" opacity="0.3"/>
+<g fill="#A3988F" opacity="0.22"><rect x="40" y="118" width="7" height="420"/><path d="M4 140 L47 118 L47 156 Z"/></g><g fill="#A3988F" opacity="0.22"><rect x="340" y="118" width="7" height="420"/><path d="M304 140 L347 118 L347 156 Z"/></g><g fill="#A3988F" opacity="0.22"><rect x="700" y="118" width="7" height="420"/><path d="M664 140 L707 118 L707 156 Z"/></g><g fill="#A3988F" opacity="0.22"><rect x="1000" y="118" width="7" height="420"/><path d="M964 140 L1007 118 L1007 156 Z"/></g><g><circle cx="120" cy="168" r="96" fill="url(#glow)"/><circle cx="120" cy="168" r="8" fill="#EAB143" opacity="0.9"/><rect x="118" y="86" width="4" height="76" fill="#A3988F" opacity="0.35"/></g><g><circle cx="420" cy="168" r="96" fill="url(#glow)"/><circle cx="420" cy="168" r="8" fill="#EAB143" opacity="0.9"/><rect x="418" y="86" width="4" height="76" fill="#A3988F" opacity="0.35"/></g><g><circle cx="780" cy="168" r="96" fill="url(#glow)"/><circle cx="780" cy="168" r="8" fill="#EAB143" opacity="0.9"/><rect x="778" y="86" width="4" height="76" fill="#A3988F" opacity="0.35"/></g><g><circle cx="1080" cy="168" r="96" fill="url(#glow)"/><circle cx="1080" cy="168" r="8" fill="#EAB143" opacity="0.9"/><rect x="1078" y="86" width="4" height="76" fill="#A3988F" opacity="0.35"/></g>
+<g>
+  <rect x="380" y="150" width="440" height="14" rx="4" fill="#6E645A"/>
+  <rect x="470" y="164" width="14" height="66" fill="#6E645A"/>
+  <rect x="716" y="164" width="14" height="66" fill="#6E645A"/>
+  <rect x="300" y="222" width="600" height="230" rx="6" fill="#EAB143"/>
+  <rect x="316" y="238" width="568" height="198" rx="3" fill="none" stroke="#F7F3EA" stroke-width="10"/>
+  <text x="600" y="294" text-anchor="middle" font-family="sans-serif" font-size="34" fill="#12283F" opacity="0.9">&#2346;&#2381;&#2354;&#2375;&#2335;&#2398;&#2377;&#2352;&#2381;&#2350;</text>
+  <text x="600" y="364" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="72" font-weight="bold" letter-spacing="8" fill="#12283F">PLATFORM</text>
+  <line x1="348" y1="388" x2="852" y2="388" stroke="#12283F" stroke-width="2" opacity="0.28"/>
+  <text x="352" y="418" font-family="DejaVu Sans Mono, monospace" font-size="24" font-weight="bold" letter-spacing="5" fill="#12283F">PF</text>
+  <text x="848" y="418" text-anchor="end" font-family="DejaVu Sans, sans-serif" font-size="22" letter-spacing="4" fill="#12283F" opacity="0.75">EST 2026</text>
+</g>
+<text x="600" y="512" text-anchor="middle" font-family="DejaVu Sans, sans-serif" font-size="30" fill="#E9F0F6">Your rail life, on one map.</text>
+<rect x="-20" y="530" width="1240" height="84" fill="#153754" opacity="0.85"/>
+<rect x="-20" y="538" width="1240" height="4" fill="#EECB9A" opacity="0.18"/>
+<rect x="-10" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="86" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="182" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="278" y="546" width="26" height="66" rx="2" fill="#0A1C33" opacity="0.5"/><rect x="374" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="470" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="566" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="662" y="546" width="26" height="66" rx="2" fill="#0A1C33" opacity="0.5"/><rect x="758" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="854" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="950" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/><rect x="1046" y="546" width="26" height="66" rx="2" fill="#0A1C33" opacity="0.5"/><rect x="1142" y="554" width="64" height="38" rx="3" fill="#EECB9A" opacity="0.20"/>
+<rect x="-20" y="606" width="1240" height="8" fill="#0A1C33" opacity="0.5"/>
+<rect x="-20" y="614" width="1240" height="16" fill="#C87352" opacity="0.55"/>
+</svg>
