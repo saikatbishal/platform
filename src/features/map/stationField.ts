@@ -43,3 +43,29 @@ export function drawStationField(
   ctx.globalAlpha = 1
   return drawn
 }
+
+/**
+ * Names a handful of on-screen station dots, once zoomed in enough
+ * (LodTier.stationLabels) that there's room to read them. Canvas text, not an
+ * SVG <text> per station: the candidate list is the same 8,696 stations as
+ * the dots above, and mounting one DOM node per station is exactly the cost
+ * this file's dot-drawing already avoids. `placed` is pre-culled and
+ * collision-resolved by `placeLabels` — this only draws.
+ */
+export function drawStationLabels(
+  ctx: CanvasRenderingContext2D,
+  placed: ReadonlyArray<{ name: string; sx: number; sy: number }>,
+  colour: string,
+  haloColour: string,
+): void {
+  ctx.font = '8.5px system-ui, sans-serif'
+  ctx.textBaseline = 'middle'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 2.5
+  ctx.strokeStyle = haloColour
+  ctx.fillStyle = colour
+  for (const p of placed) {
+    ctx.strokeText(p.name, p.sx + 6, p.sy + 3)
+    ctx.fillText(p.name, p.sx + 6, p.sy + 3)
+  }
+}
