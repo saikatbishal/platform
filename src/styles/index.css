@@ -1,5 +1,35 @@
 @import 'tailwindcss';
 @import './tokens.css';
+@import './fonts.css';
+
+/* ========================================================================
+   Cascade layers — the rule for this project.
+
+   `@import 'tailwindcss'` declares the order: theme, base, components,
+   utilities. Later layers win, and — this is the part that catches people —
+   ANY unlayered rule beats ALL of them, whatever its specificity. So a
+   stray `.thing { color: red }` at the bottom of a file quietly outranks
+   every utility in the app, and nothing about the code says so.
+
+   Therefore: every rule this project writes goes in a layer. Where:
+
+     theme       custom properties only. tokens.css, and nothing else.
+     base        element defaults — html, body, :focus-visible, resets.
+                 Things a utility must be able to override.
+     components  multi-element behaviour with its own name, like the sea
+                 animation classes. Overridable by a utility.
+     utilities   one-job classes. Declare these with `@utility`, never as
+                 a bare class — `@utility` is what puts them in the right
+                 layer and lets Tailwind's variants (hover:, sm:) work.
+
+   Nothing is written unlayered. If something genuinely has to beat a
+   utility, that is what `!` is for, and it should be argued for in a
+   comment rather than arranged silently through layer order.
+
+   @font-face and @keyframes are the two exceptions, and not really
+   exceptions: neither participates in the cascade, so a layer around them
+   would say nothing. Both stay where they are.
+   ======================================================================== */
 
 /* Bridge the tokens into Tailwind v4's theme so `bg-ground`, `text-ink`,
    `border-line`, `stroke-route-taken` all work. One source of truth: change
@@ -37,22 +67,82 @@
   --color-board-frame: var(--board-frame);
 
   --color-route-taken: var(--route-taken);
+  --color-route-halo: var(--route-halo);
   --color-route-planned: var(--route-planned);
   --color-route-idle: var(--route-idle);
   --color-station-seen: var(--station-seen);
   --color-station-new: var(--station-new);
   --color-you-are-here: var(--you-are-here);
 
-  /* Typeface slots are deliberately unset — see docs/00-decisions.md.
-     Decide these in week 1 with the two Figma screens in front of you,
-     then fill them in here and nowhere else. */
-  --font-display: system-ui, sans-serif;
-  --font-body: system-ui, sans-serif;
-  --font-mono: ui-monospace, monospace;
+  /* ---- type ---------------------------------------------------------
+     The three slots, filled. Families are loaded in fonts.css; this is
+     the only place their names appear.
+
+     Both text stacks list the script faces after Archivo rather than
+     switching stacks per element: a browser resolves the stack per
+     character, so the Devanagari line on the board reaches Plex
+     Devanagari and the Bengali line reaches Noto without either the
+     board or anything else having to know which script it holds. Add a
+     script by adding a family here and nowhere else.
+
+     'Archivo Fallback' is the metric-matched local face — see fonts.css
+     for what it is doing. It sits ahead of system-ui so the swap is
+     invisible rather than merely fast. */
+  --font-display: 'Archivo', 'Archivo Fallback', system-ui, sans-serif;
+  --font-body: 'Archivo', 'IBM Plex Sans Devanagari', 'Noto Sans Bengali',
+               'Archivo Fallback', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* ---- the scale ----------------------------------------------------
+     15px base, ×1.25 upward. Below the base it steps by a pixel or two
+     instead: at 11–15px a 1.25 ratio jumps straight past the sizes UI
+     chrome actually needs, and a scale you have to keep escaping is not
+     a scale. Line-height falls as size rises — 1.6 is right for a
+     paragraph and grotesque at 30px.
+
+     `label` is the bottom step and exists to end the 9.6px labels the
+     Polish Pass flagged. It is 11px, uppercase and tracked, which is
+     how it stays legible where 9.6px was not. Nothing below it. */
+  --text-label: 0.6875rem;      /* 11 */
+  --text-label--line-height: 1;
+  --text-xs: 0.75rem;           /* 12 */
+  --text-xs--line-height: 1.45;
+  --text-sm: 0.8125rem;         /* 13 */
+  --text-sm--line-height: 1.5;
+  --text-base: 0.9375rem;       /* 15 */
+  --text-base--line-height: 1.6;
+  --text-lg: 1.1875rem;         /* 19 */
+  --text-lg--line-height: 1.35;
+  --text-xl: 1.5rem;            /* 24 */
+  --text-xl--line-height: 1.2;
+  --text-2xl: 1.875rem;         /* 30 */
+  --text-2xl--line-height: 1.12;
+  --text-3xl: 2.3125rem;        /* 37 */
+  --text-3xl--line-height: 1.05;
+
+  /* One fluid step, for the station board's name line only. It is a
+     painted object that should fill its board at any width, which is the
+     one place in the app a fixed step is wrong. Named rather than written
+     inline because `@theme inline` inlines these values instead of
+     emitting them as custom properties — so `var(--text-xl)` inside an
+     arbitrary utility would resolve to nothing. */
+  --text-board: clamp(1.5rem, 7vw, 1.875rem);
+  --text-board--line-height: 1.1;
+
+  /* Two tracking values, not the six that had accumulated. Uppercase
+     labels need air; a station code needs more, because it is read as
+     letters rather than as a word. */
+  --tracking-label: 0.14em;
+  --tracking-code: 0.2em;
+  /* The board's name line. Wider than body tracking because it is painted
+     signage read at distance, tighter than `code` because it is a word. */
+  --tracking-board: 0.12em;
 }
 
 @layer base {
   html {
+    /* Moved here from tokens.css, which is tokens only now. */
+    color-scheme: dark light;
     -webkit-text-size-adjust: 100%;
     /* Honour the notch. A mobile-first app that ignores safe areas reads as
        a website pretending to be an app. */
@@ -68,9 +158,6 @@
     /* Stop the rubber-band overscroll that gives away a web app on iOS. */
     overscroll-behavior-y: none;
   }
-
-  /* Numbers must not jitter as they count up. */
-  .tabular { font-variant-numeric: tabular-nums; }
 
   :focus-visible {
     outline: 2px solid var(--accent);
@@ -100,6 +187,22 @@
   from { transform: translate(0, 0); }
   to   { transform: translate(4px, -3px); }
 }
-.sea-wave { animation: sea-sway 10s ease-in-out infinite alternate; }
-.sea-dot  { animation: sea-drift 12s ease-in-out infinite alternate; }
-.sea-paused :is(.sea-wave, .sea-dot) { animation-play-state: paused; }
+@layer components {
+  .sea-wave { animation: sea-sway 10s ease-in-out infinite alternate; }
+  .sea-dot  { animation: sea-drift 12s ease-in-out infinite alternate; }
+  .sea-paused :is(.sea-wave, .sea-dot) { animation-play-state: paused; }
+}
+
+/* Numbers must not jitter as they count up, and they are set in Plex Mono —
+   a mono face makes a changing digit hold its column by construction rather
+   than by asking a proportional face nicely.
+
+   `@utility`, not a bare `.tabular` class: that is what files it under
+   `utilities` so it outranks base and components the way a utility should,
+   and what makes `sm:tabular` work if it is ever wanted. Written as a plain
+   class inside `@layer base` — where it was until now — every Tailwind font
+   utility on the same element silently beat it. */
+@utility tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
