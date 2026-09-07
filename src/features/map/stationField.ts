@@ -57,11 +57,24 @@ export function drawStationLabels(
   placed: ReadonlyArray<{ name: string; sx: number; sy: number }>,
   colour: string,
   haloColour: string,
+  font: string,
 ): void {
-  ctx.font = '8.5px system-ui, sans-serif'
+  // Canvas cannot read a CSS custom property, so the caller resolves the
+  // stack and hands it over — the same arrangement the colours above use.
+  // 10px, not the 8.5 this started at: `placeLabels` reserves space with a
+  // flat 5.1px per character, which is roughly what a grotesque measures at
+  // ten. At 8.5 the reservation was over-generous and labels were dropped
+  // that would have fitted.
+  ctx.font = font
   ctx.textBaseline = 'middle'
   ctx.lineJoin = 'round'
-  ctx.lineWidth = 2.5
+  // 3, not 2.5: the halo's job is to hold a gap open in whatever runs behind
+  // the text, and the widest thing that does is the travelled route at 2.4px.
+  // strokeText centres the stroke on the glyph outline, so this is 1.5px of
+  // clearance a side — enough to read as a deliberate break in the line
+  // rather than a collision. Only works because the labels are painted above
+  // the routes now; below them, no width helps.
+  ctx.lineWidth = 3
   ctx.strokeStyle = haloColour
   ctx.fillStyle = colour
   for (const p of placed) {
