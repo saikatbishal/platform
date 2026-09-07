@@ -43,14 +43,22 @@ export default function App() {
   const signedIn = auth.status === 'signed-in'
   const demo = auth.mode === 'demo'
   /*
-   * Signed out, the app demos itself with sample journeys rather than showing
-   * a wall — so the samples are the store's seed rather than a separate code
-   * path, and anything logged lands on top of them. They do not survive a
-   * reload yet; useJourneys.ts is the one file that changes when Supabase
-   * arrives, and the seed becomes `signedIn ? [] : SAMPLE_JOURNEYS` then.
+   * Journeys are stored per user id, so two people sharing a browser — or one
+   * person with two accounts — never see each other's travel. See
+   * useJourneys.ts; it is still localStorage rather than Supabase, and it is
+   * still the only file that changes when that lands.
    */
-  const store = useJourneys(SAMPLE_JOURNEYS)
-  const journeys = store.journeys
+  const store = useJourneys(auth.user?.id ?? null)
+  /*
+   * The samples are a fallback for an empty map, not seed data written into
+   * anyone's storage. A visitor with nothing logged gets a map that shows what
+   * the app is for; the moment they log something it is theirs alone. A
+   * signed-in user with nothing logged gets the real empty map, because
+   * showing them someone else's sample travel as though it were theirs is
+   * worse than showing them nothing.
+   */
+  const showingSamples = store.journeys.length === 0 && !signedIn
+  const journeys = showingSamples ? SAMPLE_JOURNEYS : store.journeys
   const [entryOpen, setEntryOpen] = useState(false)
 
   return (
@@ -223,10 +231,13 @@ export default function App() {
             </span>
           </div>
         )}
-        {(demo || !signedIn) && (
+        {(demo || showingSamples) && (
           <div className="grid place-items-center border-l border-line bg-surface-2 px-3">
             <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
-              {signedIn ? 'Demo' : 'Sample'}
+              {/* "Sample" only while the samples are actually what is drawn —
+                  once someone logs a journey the totals are their own, and
+                  labelling them a sample would be a lie. */}
+              {showingSamples ? 'Sample' : 'Demo'}
             </span>
           </div>
         )}
