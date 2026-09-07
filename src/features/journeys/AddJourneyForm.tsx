@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useStationSearch } from './useStationSearch.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
 import type { StationHit } from './searchStations.ts'
@@ -44,11 +44,30 @@ function StationField({
     [open, query, search, exclude],
   )
 
+  const inputId = useId()
+  const listId = useId()
+
+  /*
+   * A <div>, not a <label> — and that is a fix, not a preference.
+   *
+   * This whole field used to be wrapped in one <label>, which is invalid (a
+   * label labels exactly one control, this holds eight) and actively broke
+   * selection: a click inside a label is forwarded to its labelable
+   * descendant. Tapping a result ran onPick(hit), React swapped the input out
+   * for the picked row, and the label then activated the only labelable child
+   * left inside it — the "Change" button — which calls onPick(null) and wiped
+   * the selection in the same tick. The field cleared itself every time.
+   * Reproduced in a headless browser before fixing; it was never touch
+   * specific, phones just made it obvious.
+   */
   return (
-    <label className="relative block">
-      <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
+    <div className="relative">
+      <label
+        htmlFor={inputId}
+        className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase"
+      >
         {label}
-      </span>
+      </label>
       {value ? (
         <div className="flex items-center justify-between gap-2 rounded-sm border border-line bg-surface-2 px-3 py-2.5">
           <span className="min-w-0">
@@ -66,8 +85,15 @@ function StationField({
         </div>
       ) : (
         <input
+          id={inputId}
           value={query}
+          role="combobox"
+          aria-expanded={hits.length > 0}
+          aria-controls={listId}
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
           placeholder="Station name or code"
           onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
           onFocus={() => { setOpen(true) }}
@@ -76,11 +102,16 @@ function StationField({
       )}
 
       {hits.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-sm border border-line bg-surface">
+        <ul id={listId} className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-sm border border-line bg-surface">
           {hits.map((h) => (
             <li key={h.code}>
               <button
                 type="button"
+                /* Selection stays on click so the keyboard still works, but
+                   the press is swallowed: without this the input blurs on
+                   pointer-down and, on touch, the click that follows can land
+                   on whatever the re-render moved under the finger. */
+                onPointerDown={(e) => { e.preventDefault() }}
                 onClick={() => { onPick(h); setOpen(false); setQuery('') }}
                 className="flex w-full items-baseline gap-2 border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-surface-2"
               >
@@ -92,7 +123,7 @@ function StationField({
           ))}
         </ul>
       )}
-    </label>
+    </div>
   )
 }
 
