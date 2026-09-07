@@ -133,7 +133,7 @@ a card-white landmass has no edge against the ground at all.
 | Token | Dark | Light | Role |
 | --- | --- | --- | --- |
 | `land` | `#0C2140` | `#EDE8DD` | The country |
-| `land-visited` | `#143355` | `#F2DFB8` | A state you have travelled through |
+| `land-visited` | `#1E4A73` | `#D5B87E` | A state you have travelled through |
 | `dot` | `#7E93A6` | `#8C8375` | The 8,696-station field, drawn on canvas at 0.6 alpha |
 
 The field is deliberately texture rather than subject. At full strength it
