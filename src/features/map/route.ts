@@ -159,6 +159,30 @@ export interface RouteOutcome {
 }
 
 /**
+ * Length of a known sequence of stops, in km along the track.
+ *
+ * Consecutive stops of a train are edges of the graph by construction — both
+ * are built from the same timetable — so this is almost always a straight sum
+ * of edge weights. Almost: build-routes.ts drops any hop over MAX_HOP_KM as
+ * implausible, which leaves a pair of stops adjacent on the train but not
+ * adjacent in the graph. Routing across that gap is closer to the truth than
+ * ignoring it; a gap that cannot be routed at all contributes nothing, which
+ * under-counts rather than inventing a number.
+ */
+function alongTrack(graph: RailGraph, codes: readonly string[]): number {
+  let km = 0
+  for (let i = 0; i < codes.length - 1; i++) {
+    const a = codes[i], b = codes[i + 1]
+    if (a === undefined || b === undefined) continue
+    const edge = graph.adjacency.get(a)?.find(([n]) => n === b)
+    if (edge) { km += edge[1]; continue }
+    const bridged = findRoute(graph, a, b)
+    if (bridged) km += bridged.km
+  }
+  return km
+}
+
+/**
  * Preferred path for a journey.
  *
  * If the user recorded a train number and we know its stop list, that IS the
@@ -176,9 +200,12 @@ export function routeForJourney(
     const j = trainStops.indexOf(to)
     if (i !== -1 && j !== -1) {
       const slice = i < j ? trainStops.slice(i, j + 1) : trainStops.slice(j, i + 1).reverse()
-      // A recorded stop list is the truth and does not consult the graph, so
-      // it can route between stations the graph has never heard of.
-      return { result: { codes: [...slice], km: 0 }, exact: true, failure: null }
+      // A recorded stop list is the truth about which stations, but it carries
+      // no distances, so the length still has to come from the graph. This
+      // used to return `km: 0` — harmless only while nothing passed
+      // `trainStops`, and a silent under-count of the totals the moment
+      // anything did.
+      return { result: { codes: [...slice], km: alongTrack(graph, slice) }, exact: true, failure: null }
     }
   }
 

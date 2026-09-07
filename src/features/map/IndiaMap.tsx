@@ -6,6 +6,7 @@ import type { MapData } from './useMapData.ts'
 import { drawStationField, drawStationLabels } from './stationField.ts'
 import { placeLabels, type LabelCandidate } from './labels.ts'
 import { routeForJourney, describeRouteFailure, type RouteFailure } from './route.ts'
+import { useTrainStops } from './useTrainStops.ts'
 import type { Journey } from '@/types/index.ts'
 
 interface Props {
@@ -33,6 +34,11 @@ interface Props {
  * hides the station dots everywhere except over the sea.
  */
 export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Props) {
+  /* Kept here rather than lifted to App like `data` was: that lift existed to
+     stop a second useMapData refetching 8,696 stations, and nothing about
+     shard fetches has that problem — a second consumer hits the browser cache.
+     Lift it if the add-journey sheet ends up wanting stop lists too. */
+  const { stops: trainStops, request: requestTrainStops } = useTrainStops()
   const stage = useRef<HTMLDivElement>(null)
   const baseG = useRef<SVGGElement>(null)
   const railG = useRef<SVGGElement>(null)
@@ -60,6 +66,13 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
   // the half of each stroke that reaches out over the sea survives.
   const coastD = useMemo(() => (data ? data.states.map((s) => s.d).join('') : ''), [data])
 
+  // Pull the stop list for every train a journey names. The hook fetches each
+  // shard once; until one lands the journey below just routes by inference,
+  // which is what every journey did before this was wired up.
+  useEffect(() => {
+    for (const j of journeys) if (j.trainNumber) requestTrainStops(j.trainNumber)
+  }, [journeys, requestTrainStops])
+
   /**
    * Journeys that could not be drawn are kept, not dropped.
    *
@@ -72,12 +85,15 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
    * of those tell the truth instead.
    */
   const { routes, failures } = useMemo(() => {
-    const routes: Array<{ id: string; d: string; km: number; stops: string[] }> = []
+    const routes: Array<{ id: string; d: string; km: number; stops: string[]; exact: boolean }> = []
     const failures: Array<{ journey: Journey; failure: RouteFailure }> = []
     if (!data) return { routes, failures }
 
     for (const j of journeys) {
-      const { result, failure } = routeForJourney(data.graph, j.fromCode, j.toCode)
+      // The train's own stop list beats the shortest path when we have it —
+      // `exact` is the difference between a record and a plausible guess.
+      const known = j.trainNumber ? trainStops.get(j.trainNumber) : undefined
+      const { result, failure, exact } = routeForJourney(data.graph, j.fromCode, j.toCode, known)
       if (!result) {
         // `failure` is non-null whenever `result` is null — the ?? is for the
         // type narrowing, not for a case that happens.
@@ -96,10 +112,10 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
         })
         continue
       }
-      routes.push({ id: j.id, d: `M${pts.join('L')}`, km: result.km, stops: result.codes })
+      routes.push({ id: j.id, d: `M${pts.join('L')}`, km: result.km, stops: result.codes, exact })
     }
     return { routes, failures }
-  }, [data, journeys])
+  }, [data, journeys, trainStops])
 
   /**
    * Stations the rail graph has never heard of. Their dots still draw — the
@@ -499,10 +515,20 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
                 className="stroke-route-halo opacity-15 [vector-effect:non-scaling-stroke]"
                 strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
             ))}
+            {/* Solid means the line is a record: the journey named a train and
+                this is that train's own stop list. Dashed means it is the
+                shortest path the graph could find between two endpoints — a
+                plausible answer, not a true one. route.ts has always drawn
+                that distinction and returned `exact`; nothing had ever read
+                it, so a guess and a record looked identical. */}
             {routes.map((r) => (
               <path key={`line-${r.id}`} d={r.d} fill="none"
-                className="stroke-route-taken [vector-effect:non-scaling-stroke]"
-                strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+                className={`stroke-route-taken [vector-effect:non-scaling-stroke]${
+                  r.exact ? '' : ' [stroke-dasharray:9_5]'
+                }`}
+                strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
+                <title>{r.exact ? 'Route as the train runs it' : 'Shortest path — no train recorded'}</title>
+              </path>
             ))}
             {/* An unroutable endpoint keeps its position and its colour — the
                 journey happened and this is where it ended — but goes hollow
