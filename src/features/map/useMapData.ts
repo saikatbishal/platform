@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { feature } from 'topojson-client'
 import type { Topology, GeometryCollection } from 'topojson-specification'
 import type { FeatureCollection, Geometry } from 'geojson'
@@ -59,6 +59,8 @@ export interface MapData {
 
 interface RailProps { scalerank?: number }
 interface StateProps { st_nm?: string }
+/** `district` is absent on the 34 whole-state shapes — see buildDistrictPaths. */
+interface DistrictProps { district?: string; st_nm?: string }
 
 /**
  * BASE_URL is "/platform/" in production (this app is served at
@@ -85,9 +87,20 @@ function firstObject<T extends Topology>(topo: T) {
  * top of these fixed map-space coordinates, so nothing is re-projected while
  * the user drags. That is the whole reason this map needs no tiles.
  */
-export function useMapData(): { data: MapData | null; error: string | null } {
+export function useMapData(): {
+  data: MapData | null
+  error: string | null
+  /** Ask for the district layer. Safe to call on every frame — it fetches at
+      most once, and does nothing until the base map has loaded. */
+  loadDistricts: () => void
+} {
   const [data, setData] = useState<MapData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** The states FeatureCollection the projection was built from. Districts
+      need it to project into the same space, and it is not worth putting in
+      MapData: nothing renders it, and it is the raw GeoJSON. */
+  const projectionSource = useRef<FeatureCollection<Geometry, StateProps> | null>(null)
+  const districtsRequested = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -106,6 +119,10 @@ export function useMapData(): { data: MapData | null; error: string | null } {
       if (cancelled) return
 
       const statesFc = feature(statesTopo, firstObject(statesTopo)) as FeatureCollection<Geometry, StateProps>
+      // Kept so districts can be projected later. It is the input to
+      // createIndiaProjection, not a copy of the result, so the lazy layer
+      // lands in exactly the same projection as everything above.
+      projectionSource.current = statesFc
       const projection = createIndiaProjection(MAP_WIDTH, MAP_HEIGHT, statesFc)
       const path = geoPath(projection)
       const round = (d: string | null) =>
@@ -202,7 +219,24 @@ export function useMapData(): { data: MapData | null; error: string | null } {
     return () => { cancelled = true }
   }, [])
 
-  return { data, error }
+  const loadDistricts = useCallback(() => {
+    if (districtsRequested.current) return
+    const source = projectionSource.current
+    // Called before the base map resolved. Not an error and not a missed
+    // chance — the caller asks again on the next frame at this zoom.
+    if (!source) return
+    districtsRequested.current = true
+    buildDistrictPaths(source)
+      .then((districts) => { setData((d) => (d ? { ...d, districts } : d)) })
+      .catch((e: unknown) => {
+        // Deliberately not setError: that blanks the whole map for a layer
+        // that is decoration. Let the map keep working without borders.
+        districtsRequested.current = false
+        if (import.meta.env.DEV) console.warn('[map] district borders failed to load', e)
+      })
+  }, [])
+
+  return { data, error, loadDistricts }
 }
 
 /**
@@ -210,15 +244,25 @@ export function useMapData(): { data: MapData | null; error: string | null } {
  * fetched the first time a level-of-detail tier asks for them rather than on
  * first paint.
  */
-export async function loadDistricts(
+async function buildDistrictPaths(
   projectionSource: FeatureCollection<Geometry, StateProps>,
 ): Promise<string[]> {
   const topo = await getJson<Topology>('maps/districts.topo.json')
-  const fc = feature(topo, firstObject(topo)) as FeatureCollection<Geometry>
+  const fc = feature(topo, firstObject(topo)) as FeatureCollection<Geometry, DistrictProps>
   const path = geoPath(createIndiaProjection(MAP_WIDTH, MAP_HEIGHT, projectionSource))
   const out: string[] = []
   for (const f of fc.features) {
+    // 34 of the 760 geometries are whole states, not districts: the source
+    // `india.geojson` carries a state-level polygon per state alongside its
+    // districts, and they come through with no `district` property. Drawing
+    // them here would trace every state border a second time, in the district
+    // layer's hairline, on top of the state layer that already drew it — a
+    // doubled outline that reads as a rendering fault. Noted in CHANGELOG on
+    // 5 Sep as a known source quirk; this is where it gets handled.
+    if (!f.properties?.district) continue
     const d = path(f)
+    // 0 decimals, not the 1 used elsewhere: these are hairlines under a
+    // zoomed-in view, and 760 paths at full precision is most of the 162 KB.
     if (d) out.push(d.replace(/-?\d+\.\d+/g, (m) => Number(m).toFixed(0)))
   }
   return out

@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { IndiaMap } from '@/features/map/IndiaMap.tsx'
+import { useMapData } from '@/features/map/useMapData.ts'
 import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
 import { useAuth } from '@/features/auth/AuthProvider.tsx'
 import { SignInButton } from '@/features/auth/SignInButton.tsx'
@@ -9,16 +10,29 @@ import { PlatformCanopy } from '@/components/PlatformCanopy.tsx'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
 import { formatKm } from '@/lib/distance.ts'
 
-interface Stats { km: number; stations: number; states: number }
+interface Stats {
+  km: number
+  stations: number
+  states: number
+  /** Journeys the map could not draw — see route.ts's RouteFailure. Counted
+      separately rather than folded into the totals, because a journey that
+      contributes 0 km to a number labelled "Kilometres" is a wrong number,
+      not a missing one. */
+  uncounted: number
+}
 
 export default function App() {
-  const [stats, setStats] = useState<Stats>({ km: 0, stations: 0, states: 0 })
+  const [stats, setStats] = useState<Stats>({ km: 0, stations: 0, states: 0, uncounted: 0 })
   // The board can be taken down. Signed out, the map underneath is the whole
   // pitch, and a first-time visitor should be able to look at it without
   // dismissing anything permanently — so this is a hinge, not a dismissal, and
   // it deliberately does not persist: a returning visitor gets the way in back.
   const [boardUp, setBoardUp] = useState(true)
   const onStats = useCallback((s: Stats) => { setStats(s) }, [])
+  // Loaded here rather than inside IndiaMap so there is exactly one fetch of
+  // the 8,696 stations and the rail graph for the whole app — the map draws
+  // from it, and the add-journey flow will search the same station list.
+  const { data: mapData, error: mapError, loadDistricts } = useMapData()
   const auth = useAuth()
   // The palette follows the clock, not the OS and not a switch. One call, at
   // the root; see src/features/theme/timeOfDay.ts for why 06:00 and 18:00.
@@ -32,13 +46,26 @@ export default function App() {
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-ground">
-      <IndiaMap journeys={journeys} onStats={onStats} />
+      <IndiaMap
+        journeys={journeys}
+        data={mapData}
+        error={mapError}
+        loadDistricts={loadDistricts}
+        onStats={onStats}
+      />
 
-      <header className="pointer-events-none absolute top-3 left-3 flex w-fit overflow-hidden rounded-sm border-2 border-line-strong">
-        <span className="bg-accent px-3 py-1.5 text-xs font-semibold tracking-[0.14em] text-ground uppercase">
+      {/* Roadmap Phase 1, item 8. This was the loudest thing on screen and it
+          said "v0.1": full-strength accent on a 2px border, spending the one
+          colour that means "you have travelled this" on a version number. It
+          is now ink on surface with a hairline, and the radii nest properly —
+          outer 2px, border 1px, inner 1px, so the inner corner is concentric
+          with the outer instead of sitting inside a fatter curve. The yellow
+          belongs to the route. */}
+      <header className="pointer-events-none absolute top-3 left-3 flex w-fit overflow-hidden rounded-[2px] border border-line bg-surface/90 backdrop-blur-sm">
+        <span className="rounded-l-[1px] px-2.5 py-1.5 text-label font-semibold tracking-label text-ink uppercase">
           Platform
         </span>
-        <span className="bg-surface px-3 py-1.5 text-xs font-semibold tracking-[0.14em] text-ink-soft uppercase">
+        <span className="rounded-r-[1px] border-l border-line px-2.5 py-1.5 text-label font-semibold tracking-label text-ink-faint uppercase">
           v0.1
         </span>
       </header>
@@ -117,9 +144,9 @@ export default function App() {
                          shadow-[0_2px_0_0_rgba(18,40,63,0.35)] ring-2 ring-board-edge ring-inset
                          transition-transform duration-150 hover:-translate-y-px"
             >
-              <span className="text-[0.6875rem] font-bold tracking-[0.2em] text-board-ink">PF</span>
+              <span className="font-mono text-label font-semibold tracking-code text-board-ink">PF</span>
               <span className="h-3.5 w-px bg-board-ink/30" />
-              <span className="text-[0.8125rem] font-extrabold tracking-[0.1em] text-board-ink uppercase">
+              <span className="text-sm font-extrabold tracking-label text-board-ink uppercase">
                 Sign in
               </span>
             </button>
@@ -138,14 +165,32 @@ export default function App() {
         ] as const).map(([label, value]) => (
           <div key={label} className="border-r border-line px-4 py-3 last:border-r-0">
             <span className="tabular block text-2xl leading-none text-cream">{value}</span>
-            <span className="mt-1.5 block text-[0.6rem] font-semibold tracking-[0.15em] text-ink-faint uppercase">
+            <span className="mt-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
               {label}
             </span>
           </div>
         ))}
+        {stats.uncounted > 0 && (
+          <div
+            className="grid place-items-center border-l border-line bg-surface-2 px-3"
+            title={
+              `${stats.uncounted} ${stats.uncounted === 1 ? 'journey is' : 'journeys are'} not ` +
+              'included in these totals: the rail graph has no route for them, so their ' +
+              'distance and stops are unknown rather than zero. Their end stations are ' +
+              'drawn hollow on the map.'
+            }
+          >
+            <span className="tabular block text-center text-sm leading-none text-oxide">
+              {stats.uncounted}
+            </span>
+            <span className="mt-1 block text-label font-semibold tracking-label text-ink-faint uppercase">
+              Not drawn
+            </span>
+          </div>
+        )}
         {(demo || !signedIn) && (
           <div className="grid place-items-center border-l border-line bg-surface-2 px-3">
-            <span className="text-[0.6rem] font-semibold tracking-[0.13em] text-ink-faint uppercase">
+            <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
               {signedIn ? 'Demo' : 'Sample'}
             </span>
           </div>

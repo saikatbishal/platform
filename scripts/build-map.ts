@@ -75,16 +75,17 @@ async function run(commands: string, input: Record<string, string>): Promise<Rec
   return (await mapshaper.applyCommands(commands, input)) as Record<string, string>
 }
 
-/**
- * Uniform simplification wrecks the island territories: they are ~90 of the
- * source's 25,000 vertices, so at 5% the Andamans collapse to one triangle in
- * the Bay of Bengal and the Nicobars vanish. `keep-shapes` only protects one
- * ring per feature. Keep every island vertex; it costs about 1 KB.
+/*
+ * There used to be a `simplify(pct)` helper here, exempting Andaman and
+ * Nicobar and Lakshadweep from the mainland percentage — they are ~90 of the
+ * source's 25,000 vertices, so at 5% the Andamans collapsed to one triangle
+ * and the Nicobars vanished entirely (fixed 5 Sep). Both layers that used it
+ * now ship unsimplified, so the islands need no special case: nothing is
+ * being taken away from them. Kept as a note because the lesson generalised —
+ * `keep-shapes` protects a polygon from collapsing, not a coastline from
+ * being coarsened, and the same blind spot that ate the Nicobars was quietly
+ * stranding 103 mainland stations in the sea.
  */
-function simplify(mainlandPct: number): string {
-  const islands = 'st_nm == "Andaman and Nicobar Islands" || st_nm == "Lakshadweep"'
-  return `-simplify keep-shapes variable percentage='${islands} ? 1 : ${mainlandPct}'`
-}
 
 async function main() {
   console.log('\nbuild-map\n')
@@ -97,9 +98,42 @@ async function main() {
 
   console.log('\n  building layers')
 
-  // 1. States — dissolve 760 districts up to 36 states/UTs.
+  /*
+   * 1. States — dissolve 760 districts up to 36 states/UTs.
+   *
+   * Not simplified, and that is the point. The states layer is the only one
+   * the map tests real-world positions against: it is the tan landmass, so a
+   * station whose coordinates fall outside it is drawn floating in the sea.
+   * Simplification moves a coastline; a station's lat/lon does not move with
+   * it, and every metre the border retreats strands whatever sat in that
+   * metre.
+   *
+   * Measured against all 8,696 stations, by how many end up outside the
+   * landmass:
+   *
+   *     simplify   outside   caused by simplifying   gzip     vertices
+   *        5%        119            103              6.6 KB     1,093
+   *       15%         59             40              7.7 KB     1,348
+   *       30%         42             23              9.2 KB     1,740
+   *       50%         41             22             11.0 KB     2,180
+   *       none        19              0             14.7 KB     3,285
+   *
+   * 19 is the floor: those are wrong in the source, genuinely offshore or
+   * mis-geocoded, and no amount of coastline detail fixes them. Everything
+   * above 19 was self-inflicted. The misses were never only the Sundarbans —
+   * Kerala 24, Tamil Nadu 18, West Bengal 16, Gujarat 10, and then Bihar,
+   * Assam, Uttar Pradesh and Punjab, which have no coast at all and lose
+   * stations along the simplified international border instead.
+   *
+   * So the whole exercise bought 8 KB gzipped and cost 103 stations sitting
+   * in water. Simplifying only the states that produce misses is smaller
+   * still (12.1 KB) but the list is fitted to today's station file and would
+   * rot silently the next time one is added; stated as a rule instead —
+   * every coastal or border state — it converges on this anyway. Districts
+   * stay simplified below: nothing is tested against them.
+   */
   const states = await run(
-    `-i districts.geojson -dissolve2 st_nm -filter-fields st_nm ${simplify(0.05)} ` +
+    '-i districts.geojson -dissolve2 st_nm -filter-fields st_nm ' +
       '-o format=topojson precision=0.0001 states.topo.json',
     { 'districts.geojson': districts },
   )
@@ -115,9 +149,20 @@ async function main() {
     { 'outline.geojson': outlineGeo['outline.geojson']! },
   )
 
-  // 3. Districts — for the deepest zoom. Lazy-loaded, never in the first paint.
+  /*
+   * 3. Districts — for the deepest zoom. Lazy-loaded, never in the first paint.
+   *
+   * Not simplified either, for a reason that only appeared once the states
+   * above stopped being. These are the same polygons the states are dissolved
+   * from, so a coastal district's seaward edge IS the coastline. Left at 6%
+   * while the coast is drawn at full detail, that edge cuts across the land
+   * or floats off it — and the district layer draws as hairlines over the
+   * land fill, so the mismatch would be plainly visible from zoom 4 up.
+   * Costs 28 KB gzipped (45 -> 73) on a layer only fetched by someone already
+   * zoomed in that far.
+   */
   const districtsTopo = await run(
-    `-i districts.geojson -filter-fields district,st_nm ${simplify(0.06)} ` +
+    '-i districts.geojson -filter-fields district,st_nm ' +
       '-o format=topojson precision=0.0001 districts.topo.json',
     { 'districts.geojson': districts },
   )

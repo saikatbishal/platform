@@ -43,3 +43,42 @@ export function drawStationField(
   ctx.globalAlpha = 1
   return drawn
 }
+
+/**
+ * Names a handful of on-screen station dots, once zoomed in enough
+ * (LodTier.stationLabels) that there's room to read them. Canvas text, not an
+ * SVG <text> per station: the candidate list is the same 8,696 stations as
+ * the dots above, and mounting one DOM node per station is exactly the cost
+ * this file's dot-drawing already avoids. `placed` is pre-culled and
+ * collision-resolved by `placeLabels` — this only draws.
+ */
+export function drawStationLabels(
+  ctx: CanvasRenderingContext2D,
+  placed: ReadonlyArray<{ name: string; sx: number; sy: number }>,
+  colour: string,
+  haloColour: string,
+  font: string,
+): void {
+  // Canvas cannot read a CSS custom property, so the caller resolves the
+  // stack and hands it over — the same arrangement the colours above use.
+  // 10px, not the 8.5 this started at: `placeLabels` reserves space with a
+  // flat 5.1px per character, which is roughly what a grotesque measures at
+  // ten. At 8.5 the reservation was over-generous and labels were dropped
+  // that would have fitted.
+  ctx.font = font
+  ctx.textBaseline = 'middle'
+  ctx.lineJoin = 'round'
+  // 3, not 2.5: the halo's job is to hold a gap open in whatever runs behind
+  // the text, and the widest thing that does is the travelled route at 2.4px.
+  // strokeText centres the stroke on the glyph outline, so this is 1.5px of
+  // clearance a side — enough to read as a deliberate break in the line
+  // rather than a collision. Only works because the labels are painted above
+  // the routes now; below them, no width helps.
+  ctx.lineWidth = 3
+  ctx.strokeStyle = haloColour
+  ctx.fillStyle = colour
+  for (const p of placed) {
+    ctx.strokeText(p.name, p.sx + 6, p.sy + 3)
+    ctx.fillText(p.name, p.sx + 6, p.sy + 3)
+  }
+}

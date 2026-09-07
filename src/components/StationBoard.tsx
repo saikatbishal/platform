@@ -45,20 +45,20 @@ export function StationBoard({ devanagari, latin, regional, code, zone }: Props)
           CSS border on it — on a real board the yellow runs past the white on
           all four sides, and a plain border loses that. */}
       <div className="rounded-[1px] border-2 border-board-edge px-4 py-3.5 text-center">
-        <p className="m-0 text-[0.8125rem] leading-tight text-board-ink/85">{devanagari}</p>
-        <p className="m-0 mt-0.5 text-[clamp(1.375rem,7vw,1.875rem)] leading-[1.1] font-extrabold tracking-[0.12em] text-board-ink uppercase">
+        <p className="m-0 text-sm leading-tight text-board-ink/85">{devanagari}</p>
+        <p className="m-0 mt-0.5 text-board font-extrabold tracking-board text-board-ink uppercase">
           {latin}
         </p>
         {regional && (
-          <p className="m-0 mt-0.5 text-[0.8125rem] leading-tight text-board-ink/85">{regional}</p>
+          <p className="m-0 mt-0.5 text-sm leading-tight text-board-ink/85">{regional}</p>
         )}
 
         <div className="mt-3 flex items-center justify-between border-t border-board-ink/25 pt-2">
-          <span className="tabular text-[0.6875rem] leading-none font-bold tracking-[0.2em] text-board-ink">
+          <span className="tabular text-label leading-none font-semibold tracking-code text-board-ink">
             {code}
           </span>
           {zone && (
-            <span className="text-[0.6875rem] leading-none font-semibold tracking-[0.2em] text-board-ink/75">
+            <span className="font-mono text-label leading-none font-normal tracking-code text-board-ink/75">
               {zone}
             </span>
           )}

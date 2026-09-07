@@ -8,130 +8,170 @@
    Dark is the PRIMARY theme, so bare :root carries it.
    ============================================================ */
 
-:root{
-  /* grounds — the coach, deepened one step so surfaces sit above it */
-  --ground:        #0A1C33;
-  --surface:       #0D2242;   /* the measured coach paint, unaltered */
-  --surface-2:     #153754;   /* the coach's lighter stripe */
-  --line:          #1F4568;
-  --line-strong:   #2E5C82;
+/* ------------------------------------------------------------------------
+   Cascade layer: `theme`.
 
-  /* text */
-  --ink:           #E9F0F6;   /* 14.9:1 on ground */
-  --ink-soft:      #A2B7C9;   /*  8.3:1 on ground */
-  --ink-faint:     #7791A8;   /*  5.2:1 — labels only */
+   This file is nothing but custom properties, and custom properties are the
+   weakest thing in the system by design — everything downstream reads them,
+   nothing should have to fight them. `theme` is the first layer Tailwind
+   declares, so base, components and utilities all outrank what is in here.
 
-  /* accent — station board yellow */
-  --accent:        #EAB143;   /*  8.9:1 on ground */
-  --accent-wash:   #332818;   /* callout fill; accent on it = 7.5:1 */
-  --accent-dim:    #8A6420;   /* inactive route strokes */
+   It also fixes a real bug this file used to carry: `html` and `body` rules
+   sat at the bottom of it, unlayered. Unlayered author CSS beats every
+   layer, so that `body { background }` silently outranked both the identical
+   rule in index.css's `@layer base` AND any `bg-*` utility put on the body.
+   Those two rules now live in index.css where the other element styles are.
+   ------------------------------------------------------------------------ */
 
-  /* signature colours */
-  --cream:         #EECB9A;   /* stencil cream — LARGE NUMERALS ONLY */
-  --vermillion:    #E85C50;   /* errors + the one "you are here" marker */
-  --oxide:         #C87352;   /* planned, not yet travelled */
-  --steel:         #A3988F;   /* unvisited stations, disabled, inactive track */
+@layer theme {
 
-  /* the map's own surfaces. Land is not a card, so it gets its own tokens
-     rather than borrowing --surface: cards sit above the page, land IS the
-     page, and in light mode a card-white landmass has no edge at all. */
-  --land:          #0C2140;
-  --land-visited:  #143355;   /* a state you have travelled through */
-  --dot:           #7E93A6;   /* the 8,696-station field, drawn on canvas */
+  :root{
+    /* grounds — the coach, deepened one step so surfaces sit above it */
+    --ground:        #0A1C33;
+    --surface:       #0D2242;   /* the measured coach paint, unaltered */
+    --surface-2:     #153754;   /* the coach's lighter stripe */
+    --line:          #1F4568;
+    --line-strong:   #2E5C82;
 
-  /* the sea. This is the sky-panel #98C5C8 from the reference photos finally
-     getting a job: darkened toward the coach navy for the water itself, and
-     half-strength for everything drawn ON the water (graticule, waterlines,
-     wave glyphs, sea names). Decorative, so contrast rules don't apply. */
-  --sea:           #081D2B;
-  --sea-ink:       #4D7A8C;
+    /* text */
+    --ink:           #E9F0F6;   /* 14.9:1 on ground */
+    --ink-soft:      #A2B7C9;   /*  8.3:1 on ground */
+    --ink-faint:     #7791A8;   /*  5.2:1 — labels only */
 
-  /* ---- the station board -------------------------------------------------
-     A painted metal object, not a UI surface. Its paint does not change when
-     the page theme does: an Alwar Junction board is the same yellow at noon
-     and at 2 a.m., and the whole point of the placard is that it is the real
-     thing sitting on the page. So these four are declared ONCE, at :root, and
-     deliberately absent from both theme blocks below — the one exception to
-     palette rule 4, and the reason is that they are paint, not palette.
-     Navy on this yellow measures 7.8:1. */
-  --board:        #EAB143;   /* board yellow, full strength, both themes */
-  --board-ink:    #12283F;   /* the navy the letters are stencilled in */
-  --board-edge:   #F7F3EA;   /* the white enamel border around every board */
-  --board-frame:  #6E645A;   /* the bracket and posts it hangs from */
+    /* accent — station board yellow */
+    --accent:        #EAB143;   /*  8.9:1 on ground */
+    --accent-wash:   #332818;   /* callout fill; accent on it = 7.5:1 */
+    --accent-dim:    #8A6420;   /* inactive route strokes */
 
-  /* map semantics — derived, so intent is in one place */
-  --route-taken:   var(--accent);
-  --route-planned: var(--oxide);
-  --route-idle:    var(--line);
-  --station-seen:  var(--cream);
-  --station-new:   var(--steel);
-  --you-are-here:  var(--vermillion);
-}
+    /* signature colours */
+    --cream:         #EECB9A;   /* stencil cream — LARGE NUMERALS ONLY */
+    --vermillion:    #E85C50;   /* errors + the one "you are here" marker */
+    --oxide:         #C87352;   /* planned, not yet travelled */
+    --steel:         #A3988F;   /* unvisited stations, disabled, inactive track */
 
-/* light, unless the viewer explicitly chose dark */
-@media (prefers-color-scheme: light){
-  :root:not([data-theme="dark"]){
-    --ground:      #F4F1EA;   /* platform whitewash, warm */
+    /* the map's own surfaces. Land is not a card, so it gets its own tokens
+       rather than borrowing --surface: cards sit above the page, land IS the
+       page, and in light mode a card-white landmass has no edge at all. */
+    --land:          #0C2140;
+    /* Roadmap Phase 1, item 12. This was #143355, which is 1.25:1 against the
+       land beside it — the app's single biggest reward, and it did not survive
+       greyscale, sunlight, or a cheap phone. Now 1.75:1, and still 4.8:1 under
+       the accent so the route reads on top of a state it crosses. The fill does
+       half the work; the heavier outline in IndiaMap does the other half, which
+       is what makes the cue survive a desaturating screenshot. */
+    --land-visited:  #1E4A73;   /* a state you have travelled through */
+    --dot:           #7E93A6;   /* the 8,696-station field, drawn on canvas */
+
+    /* the sea. This is the sky-panel #98C5C8 from the reference photos finally
+       getting a job: darkened toward the coach navy for the water itself, and
+       half-strength for everything drawn ON the water (graticule, waterlines,
+       wave glyphs, sea names). Decorative, so contrast rules don't apply. */
+    --sea:           #081D2B;
+    --sea-ink:       #4D7A8C;
+
+    /* ---- the station board -------------------------------------------------
+       A painted metal object, not a UI surface. Its paint does not change when
+       the page theme does: an Alwar Junction board is the same yellow at noon
+       and at 2 a.m., and the whole point of the placard is that it is the real
+       thing sitting on the page. So these four are declared ONCE, at :root, and
+       deliberately absent from both theme blocks below — the one exception to
+       palette rule 4, and the reason is that they are paint, not palette.
+       Navy on this yellow measures 7.8:1. */
+    --board:        #EAB143;   /* board yellow, full strength, both themes */
+    --board-ink:    #12283F;   /* the navy the letters are stencilled in */
+    --board-edge:   #F7F3EA;   /* the white enamel border around every board */
+    --board-frame:  #6E645A;   /* the bracket and posts it hangs from */
+
+    /* map semantics — derived, so intent is in one place */
+    /* The travelled route is black, not the accent — a deliberate change
+       (6 Sep) away from the yellow this token used to alias. On the dark
+       ground that is a real problem, not a style note: literal black
+       measures 1.23:1 against --ground and 1.3–2.3:1 against the land
+       tones a route crosses, and darkening it further buys nothing — the
+       ground here is already near-black, so the only direction with room
+       to move is lighter, which stops reading as "black". So the line
+       stays true `#000` in both themes, and visibility comes from
+       `--route-halo` instead of the line itself: a soft `--ink` glow
+       behind the black stroke — a dark line cut into a field of light,
+       the way a wet rail looks at night, rather than a light line on a
+       dark field. `--ink` already flips per theme (near-white on the
+       coach navy, near-navy on paper), so one definition covers both: on
+       paper the "glow" is just an ordinary soft dark shadow, which is what
+       this token was doing anyway before the route was black. */
+    --route-taken:   #000000;
+    --route-halo:    var(--ink);
+    --route-planned: var(--oxide);
+    --route-idle:    var(--line);
+    --station-seen:  var(--cream);
+    --station-new:   var(--steel);
+    --you-are-here:  var(--vermillion);
+  }
+
+  /* light, unless the viewer explicitly chose dark */
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --ground:      #F4F1EA;   /* platform whitewash, warm */
+      --surface:     #FCFAF6;
+      --surface-2:   #EAE5DA;
+      --line:        #D8D1C3;
+      --line-strong: #B9B0A0;
+
+      --ink:         #12283F;   /* the coach navy doing duty as ink */
+      --ink-soft:    #3F5A73;
+      --ink-faint:   #6B8299;
+
+      --accent:      #8A5A0F;   /* yellow darkened until readable on paper */
+      --accent-wash: #F5E7CC;
+      --accent-dim:  #C79A47;
+      --accent-fill: #EAB143;   /* the true board yellow — FILL ONLY, navy text on top */
+
+      --land:        #EDE8DD;
+      /* Paper cannot go lighter, so the visited state goes deeper instead —
+         1.07:1 became 1.56:1. The route (#8A5A0F) still measures 3.1:1 on it. */
+      --land-visited:#D5B87E;
+      --dot:         #8C8375;
+
+      --sea:         #E2ECEA;   /* a pale wash of the sky panel on warm paper */
+      --sea-ink:     #5F8B92;
+
+      --cream:       #8A6420;   /* cream can't survive on white; becomes bronze */
+      --vermillion:  #B4302A;
+      --oxide:       #6B3524;
+      --steel:       #6E645A;
+    }
+  }
+
+  /* and again for the explicit toggle, so a chosen light beats a dark OS */
+  :root[data-theme="light"]{
+    --ground:      #F4F1EA;
     --surface:     #FCFAF6;
     --surface-2:   #EAE5DA;
     --line:        #D8D1C3;
     --line-strong: #B9B0A0;
-
-    --ink:         #12283F;   /* the coach navy doing duty as ink */
+    --ink:         #12283F;
     --ink-soft:    #3F5A73;
     --ink-faint:   #6B8299;
-
-    --accent:      #8A5A0F;   /* yellow darkened until readable on paper */
+    --accent:      #8A5A0F;
     --accent-wash: #F5E7CC;
     --accent-dim:  #C79A47;
-    --accent-fill: #EAB143;   /* the true board yellow — FILL ONLY, navy text on top */
-
-    --land:        #EDE8DD;
-    --land-visited:#F2DFB8;
-    --dot:         #8C8375;
-
-    --sea:         #E2ECEA;   /* a pale wash of the sky panel on warm paper */
-    --sea-ink:     #5F8B92;
-
-    --cream:       #8A6420;   /* cream can't survive on white; becomes bronze */
+    --accent-fill: #EAB143;
+    --cream:       #8A6420;
     --vermillion:  #B4302A;
     --oxide:       #6B3524;
     --steel:       #6E645A;
+    --land:        #EDE8DD;
+    --land-visited:#D5B87E;
+    --dot:         #8C8375;
+    --sea:         #E2ECEA;
+    --sea-ink:     #5F8B92;
   }
+
+  /* ---- the four rules, as comments where you'll actually read them ----
+     1. --accent (#EAB143) is a FILL, not a text colour. On white it is 2.0:1.
+        Navy on that yellow is 7.8:1 — that is how every station board works.
+     2. --vermillion is not a second accent. Errors and one live marker only.
+     3. --cream is for large numerals only. Muddy below ~20px.
+     4. Never use a neutral grey. Every neutral here is warm. Use --steel.
+     ------------------------------------------------------------------- */
+
 }
-
-/* and again for the explicit toggle, so a chosen light beats a dark OS */
-:root[data-theme="light"]{
-  --ground:      #F4F1EA;
-  --surface:     #FCFAF6;
-  --surface-2:   #EAE5DA;
-  --line:        #D8D1C3;
-  --line-strong: #B9B0A0;
-  --ink:         #12283F;
-  --ink-soft:    #3F5A73;
-  --ink-faint:   #6B8299;
-  --accent:      #8A5A0F;
-  --accent-wash: #F5E7CC;
-  --accent-dim:  #C79A47;
-  --accent-fill: #EAB143;
-  --cream:       #8A6420;
-  --vermillion:  #B4302A;
-  --oxide:       #6B3524;
-  --steel:       #6E645A;
-  --land:        #EDE8DD;
-  --land-visited:#F2DFB8;
-  --dot:         #8C8375;
-  --sea:         #E2ECEA;
-  --sea-ink:     #5F8B92;
-}
-
-html{ color-scheme: dark light; }
-body{ background: var(--ground); color: var(--ink); }
-
-/* ---- the four rules, as comments where you'll actually read them ----
-   1. --accent (#EAB143) is a FILL, not a text colour. On white it is 2.0:1.
-      Navy on that yellow is 7.8:1 — that is how every station board works.
-   2. --vermillion is not a second accent. Errors and one live marker only.
-   3. --cream is for large numerals only. Muddy below ~20px.
-   4. Never use a neutral grey. Every neutral here is warm. Use --steel.
-   ------------------------------------------------------------------- */

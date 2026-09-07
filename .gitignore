@@ -25,3 +25,5 @@ scripts/.cache/
 # logs
 npm-debug.log*
 *.log
+/images
+/**/*.pdf

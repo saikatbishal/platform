@@ -34,6 +34,18 @@ export function usePanZoom(
   const dirty = useRef(true)
   const raf = useRef(0)
 
+  // Latest-ref pattern: `onFrame`/`onZoomSettled` are read from inside the
+  // setup effect below via these refs, which is what lets the effect itself
+  // omit them from its dependency array (see the comment down there). A prop
+  // that changed identity on every journeys-list update (adding a journey,
+  // crossing an LOD tier) would otherwise re-run the effect and its
+  // unconditional `fitToViewport()` call — snapping the view back to the
+  // country fit mid-zoom.
+  const onFrameRef = useRef(onFrame)
+  onFrameRef.current = onFrame
+  const onZoomSettledRef = useRef(onZoomSettled)
+  onZoomSettledRef.current = onZoomSettled
+
   const pointers = useRef(new Map<number, { x: number; y: number }>())
   const dragging = useRef(false)
   const pinchDist = useRef(0)
@@ -95,12 +107,12 @@ export function usePanZoom(
       }
       if (dirty.current) {
         clamp()
-        onFrame(view.current, fit.current)
+        onFrameRef.current(view.current, fit.current)
         const rel = view.current.k / fit.current
         const bucket = Math.round(rel * 100)
         if (bucket !== lastTier.current) {
           lastTier.current = bucket
-          onZoomSettled?.(rel)
+          onZoomSettledRef.current?.(rel)
         }
         dirty.current = false
       }
@@ -195,7 +207,24 @@ export function usePanZoom(
       el.removeEventListener('dblclick', onDouble)
       window.removeEventListener('resize', onResize)
     }
-  }, [stage, onFrame, onZoomSettled, clamp, fitToViewport, zoomAt])
+    // `onFrame`/`onZoomSettled` are read via onFrameRef/onZoomSettledRef
+    // above and deliberately excluded here — that is the entire point of
+    // the latest-ref pattern. Including them defeats it the same way not
+    // having the refs would: either way, a caller passing a new function
+    // identity each render (an inline arrow, or a callback that closes over
+    // changing props) re-runs this effect and its unconditional
+    // `fitToViewport()`, snapping the view back to the country fit mid-zoom
+    // or mid-drag. `stage`, `clamp`, `fitToViewport` and `zoomAt` are all
+    // stable across the component's life (a ref object, and callbacks with
+    // no changing dependencies of their own), so this effect in practice
+    // runs once on mount and once on unmount, which is what a "wire up
+    // event listeners" effect should do.
+    //
+    // No eslint-disable here: this project has no linter yet
+    // (docs/00-decisions.md) and, if one lands, it's slated to be Biome, not
+    // ESLint — a directive naming the wrong tool's rule is worse than no
+    // directive, since it looks like protection that isn't actually wired up.
+  }, [stage, clamp, fitToViewport, zoomAt])
 
   const zoomBy = useCallback((factor: number) => {
     const el = stage.current
@@ -203,5 +232,19 @@ export function usePanZoom(
     zoomAt(el.clientWidth / 2, el.clientHeight / 2, factor)
   }, [stage, zoomAt])
 
-  return { zoomBy, reset: fitToViewport, view }
+  /**
+   * Repaint on the next frame without moving the view.
+   *
+   * The loop below only calls `onFrame` when something marked the view dirty,
+   * and the things that mark it dirty are all *interactions* — fit, zoom,
+   * drag, momentum, resize. Data arriving is not one of them, and `onFrame`
+   * bails while `data` is null, so the first frame after mount paints nothing
+   * and then clears the flag. Without this, a map whose data resolves after
+   * mount sits untransformed with an empty station canvas until the user
+   * happens to touch it. `reset` would also repaint, but it re-fits, which
+   * would yank the view back if data ever reloads mid-zoom.
+   */
+  const invalidate = useCallback(() => { dirty.current = true }, [])
+
+  return { zoomBy, reset: fitToViewport, invalidate, view }
 }
