@@ -11,9 +11,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "data:build": "node scripts/build-stations.ts",
     "map:build": "node scripts/build-map.ts",
-    "assets": "npm run map:build && npm run data:build && npm run routes:build && npm run trains:build",
+    "assets": "npm run map:build && npm run data:build && npm run routes:build && npm run trains:build && npm run stations:build",
     "routes:build": "node scripts/build-routes.ts",
-    "trains:build": "node scripts/build-trainstops.ts"
+    "trains:build": "node scripts/build-trainstops.ts",
+    "stations:build": "node scripts/build-station-trains.ts"
   },
   "dependencies": {
     "@fontsource/archivo": "^5.3.0",
