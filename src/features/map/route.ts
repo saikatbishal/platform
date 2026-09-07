@@ -119,6 +119,46 @@ export function findRoute(graph: RailGraph, from: string, to: string): RouteResu
 }
 
 /**
+ * Why a journey could not be turned into a line.
+ *
+ * `findRoute` returns null for two quite different reasons and the caller
+ * cannot tell them apart from the null alone, which is how a journey used to
+ * vanish from the map without a word. Naming them here means the UI can say
+ * something true about each, and means a caller cannot silently drop one by
+ * checking only for the reason it happened to think of.
+ */
+export type RouteFailure =
+  /**
+   * One or both codes have no edges in the graph at all. 450 of the 8,696
+   * stations in stations.json are in this position, because the graph is
+   * built from timetables (see scripts/build-routes.ts) and no train in that
+   * dataset calls at them. They are still real stations and still pickable,
+   * so this is an expected state, not a corruption.
+   */
+  | { kind: 'unknown-station'; codes: string[] }
+  /**
+   * Both codes are in the graph, but no path joins them — they sit in
+   * different connected components. The graph has two: the network, and a
+   * 13-station island around Dhamtari in Chhattisgarh, which is a genuinely
+   * separate narrow-gauge line rather than a data error. Dijkstra runs to
+   * exhaustion here, so this is NOT caught by an `adjacency.has()` check.
+   */
+  | { kind: 'no-path' }
+  /**
+   * The route resolved, but fewer than two of its stops could be placed on
+   * the map — the codes are not in `byCode`. A line needs two points.
+   */
+  | { kind: 'undrawable'; plotted: number; of: number }
+
+export interface RouteOutcome {
+  result: RouteResult | null
+  /** True when the path came from a real timetable rather than inference. */
+  exact: boolean
+  /** Null exactly when `result` is non-null. */
+  failure: RouteFailure | null
+}
+
+/**
  * Preferred path for a journey.
  *
  * If the user recorded a train number and we know its stop list, that IS the
@@ -130,14 +170,42 @@ export function routeForJourney(
   from: string,
   to: string,
   trainStops?: readonly string[],
-): { result: RouteResult | null; exact: boolean } {
+): RouteOutcome {
   if (trainStops && trainStops.length > 1) {
     const i = trainStops.indexOf(from)
     const j = trainStops.indexOf(to)
     if (i !== -1 && j !== -1) {
       const slice = i < j ? trainStops.slice(i, j + 1) : trainStops.slice(j, i + 1).reverse()
-      return { result: { codes: [...slice], km: 0 }, exact: true }
+      // A recorded stop list is the truth and does not consult the graph, so
+      // it can route between stations the graph has never heard of.
+      return { result: { codes: [...slice], km: 0 }, exact: true, failure: null }
     }
   }
-  return { result: findRoute(graph, from, to), exact: false }
+
+  // Checked here rather than left to findRoute so the two null paths stay
+  // distinguishable. `from === to` is deliberately exempt: findRoute answers
+  // that before it looks at the graph, and a same-station journey is a
+  // legitimate zero-length answer whether or not the code is known.
+  if (from !== to) {
+    const unknown = [...new Set([from, to])].filter((c) => !graph.adjacency.has(c))
+    if (unknown.length > 0) {
+      return { result: null, exact: false, failure: { kind: 'unknown-station', codes: unknown } }
+    }
+  }
+
+  const result = findRoute(graph, from, to)
+  if (!result) return { result: null, exact: false, failure: { kind: 'no-path' } }
+  return { result, exact: false, failure: null }
+}
+
+/** One line of plain English, for a tooltip or a dev warning. */
+export function describeRouteFailure(f: RouteFailure): string {
+  switch (f.kind) {
+    case 'unknown-station':
+      return `no rail-graph data for ${f.codes.join(' and ')}`
+    case 'no-path':
+      return 'no connected path on the rail network'
+    case 'undrawable':
+      return `only ${f.plotted} of ${f.of} stops could be placed on the map`
+  }
 }
