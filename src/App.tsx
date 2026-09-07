@@ -2,6 +2,8 @@ import { useCallback, useState } from 'react'
 import { IndiaMap } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
 import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
+import { useJourneys } from '@/features/journeys/useJourneys.ts'
+import { AddJourneyForm } from '@/features/journeys/AddJourneyForm.tsx'
 import { useAuth } from '@/features/auth/AuthProvider.tsx'
 import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
@@ -40,9 +42,16 @@ export default function App() {
 
   const signedIn = auth.status === 'signed-in'
   const demo = auth.mode === 'demo'
-  // Signed out, the app demos itself with sample journeys rather than showing
-  // a wall. Once real data exists this becomes: signedIn ? journeys : SAMPLE.
-  const journeys = SAMPLE_JOURNEYS
+  /*
+   * Signed out, the app demos itself with sample journeys rather than showing
+   * a wall — so the samples are the store's seed rather than a separate code
+   * path, and anything logged lands on top of them. They do not survive a
+   * reload yet; useJourneys.ts is the one file that changes when Supabase
+   * arrives, and the seed becomes `signedIn ? [] : SAMPLE_JOURNEYS` then.
+   */
+  const store = useJourneys(SAMPLE_JOURNEYS)
+  const journeys = store.journeys
+  const [entryOpen, setEntryOpen] = useState(false)
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-ground">
@@ -151,6 +160,32 @@ export default function App() {
               </span>
             </button>
           )}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={() => { setEntryOpen(true) }}
+        className="pointer-events-auto absolute bottom-24 left-3 rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
+      >
+        + Log a journey
+      </button>
+
+      {entryOpen && (
+        <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
+          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
+            <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
+              Log a journey
+            </h2>
+            <AddJourneyForm
+              stations={mapData?.stations}
+              onAdd={(draft) => {
+                store.add(draft, mapData?.graph ?? null)
+                setEntryOpen(false)
+              }}
+              onClose={() => { setEntryOpen(false) }}
+            />
+          </div>
         </div>
       )}
 

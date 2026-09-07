@@ -38,13 +38,14 @@ import { resolve } from 'node:path'
 const SCHEDULES_URL =
   'https://raw.githubusercontent.com/datameet/railways/master/schedules.json'
 const OUT_DIR = resolve(import.meta.dirname, '../public/maps/trainstops')
+const NAMES_OUT = resolve(import.meta.dirname, '../public/maps/trainnames.json')
 const STATIONS = resolve(import.meta.dirname, '../public/data/stations.json')
 const TMP = resolve(import.meta.dirname, '.cache')
 
 /** Train numbers are 5 digits, except ~69 slip coaches like "18623-Slip". */
 const PREFIX = 3
 
-interface ScheduleRow { train_number: string; station_code: string }
+interface ScheduleRow { train_number: string; station_code: string; train_name?: string }
 interface Station { code: string }
 
 async function fetchCached(url: string, name: string): Promise<string> {
@@ -78,7 +79,10 @@ async function main() {
   // Same grouping as build-routes.ts — see the header.
   const trains = new Map<string, string[]>()
   const seenPerTrain = new Map<string, Set<string>>()
+  /** First name seen per train. The rows repeat it on every stop. */
+  const names = new Map<string, string>()
   for (const r of rows) {
+    if (r.train_name && !names.has(r.train_number)) names.set(r.train_number, r.train_name)
     let seq = trains.get(r.train_number)
     let seen = seenPerTrain.get(r.train_number)
     if (!seq || !seen) {
@@ -113,7 +117,28 @@ async function main() {
     await writeFile(resolve(OUT_DIR, `${key}.json`), json, 'utf8')
   }
   console.log(`  ${kept.toLocaleString()} trains in ${shards.size} shards, ${(bytes / 1024).toFixed(0)} KB raw`)
-  console.log(`\n  wrote public/maps/trainstops/\n`)
+
+  /*
+   * Train names, keyed by number.
+   *
+   * The picker cannot be tested — or used — against bare five-digit numbers:
+   * "12951" and "12952" are the same train in opposite directions and nobody
+   * remembers which. One flat file rather than a field inside each shard,
+   * because the picker needs names for every candidate at once (a route can
+   * offer forty trains spanning a dozen shards) and it is small enough that
+   * splitting it would cost more requests than it saves bytes.
+   */
+  const nameOut: Record<string, string> = {}
+  for (const shard of shards.values()) {
+    for (const number of Object.keys(shard)) {
+      const name = names.get(number)
+      if (name) nameOut[number] = name
+    }
+  }
+  const namesJson = JSON.stringify(nameOut)
+  await writeFile(NAMES_OUT, namesJson, 'utf8')
+  console.log(`  ${Object.keys(nameOut).length.toLocaleString()} train names, ${(namesJson.length / 1024).toFixed(0)} KB raw`)
+  console.log(`\n  wrote public/maps/trainstops/ and trainnames.json\n`)
 }
 
 main().catch((e: unknown) => { console.error(e); process.exitCode = 1 })
