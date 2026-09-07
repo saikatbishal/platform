@@ -50,6 +50,29 @@ network with `src/features/map/route.ts`. A straight line between distant
 stations leaves the landmass — 75% over water on Vijayawada–Chennai — and
 undercounts distance by about 10%. `docs/07-routing.md` has the measurements.
 
+**Never silently drop a journey.** If a journey cannot be routed or drawn, the failure is data the UI owes the user, not a `return []`. `routeForJourney` returns a named `RouteFailure` for every way it can fail; carry it out and show it — a hollow endpoint, a note on the totals. A journey that contributes 0 km
+to a figure labelled "Kilometres" makes that figure wrong, not incomplete.
+Note there are two distinct null paths: a station absent from the graph, and
+two stations in different connected components. Checking `adjacency.has()`
+alone catches only the first.
+
+**Never write an unlayered CSS rule.** `@import 'tailwindcss'` declares the
+order — theme, base, components, utilities — and an unlayered rule beats every
+one of them regardless of specificity, silently. Tokens go in `theme`
+(`tokens.css`, and nothing else belongs there); element defaults in `base`;
+named multi-element behaviour in `components`; one-job classes are declared
+with `@utility`, never as a bare class, because that is what files them in the
+right layer and makes variants work. `@font-face` and `@keyframes` are outside
+the cascade and stay unlayered. The full policy is commented at the top of
+`src/styles/index.css`.
+
+**Never set the same SVG property by both a class and a presentation
+attribute.** A CSS rule beats a presentation attribute always — layers do not
+enter into it, an attribute loses to every layer — so an element carrying
+`strokeWidth={0.6}` and a `[stroke-width:…]` class is being decided by two
+mechanisms at once. Attribute-only is fine and idiomatic; class-only is fine;
+both on one element is a bug waiting for someone to edit the wrong one.
+
 **Never use a neutral grey.** Every neutral in this palette is warm. `#808080`
 anywhere will read as a bug. Use `steel`.
 
