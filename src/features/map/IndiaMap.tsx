@@ -364,15 +364,23 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
             strokeOpacity={0.16}
             className="stroke-sea-ink [vector-effect:non-scaling-stroke]"
           />
-          {/* neighbouring coastlines as ghosts — scenery, not states */}
+          {/* Neighbouring countries — scenery, never states to unlock.
+              Filled with --land at partial strength rather than a colour of
+              their own: they have to read as land, because that is the entire
+              point of drawing them. Sea-ink at 10% was the old styling, and
+              it made Bangladesh look like more sea — which left the stations
+              along the Gede line looking exactly as adrift as they did when
+              the country was not drawn at all. Partial --land also means the
+              two themes stay in step for free, with no fourth land colour to
+              keep in tune. */}
           {data.neighbors.map((d, i) => (
             <path
               key={i}
               d={d}
-              fillOpacity={0.1}
-              strokeOpacity={0.3}
+              fillOpacity={0.45}
+              strokeOpacity={0.35}
               strokeWidth={0.8}
-              className="fill-sea-ink stroke-sea-ink [vector-effect:non-scaling-stroke]"
+              className="fill-land stroke-line-strong [vector-effect:non-scaling-stroke]"
             />
           ))}
           {/* coastal waterlining, the engraved-chart way: the same coast
