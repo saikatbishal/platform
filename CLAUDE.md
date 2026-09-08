@@ -23,7 +23,6 @@ changes state.
   dependency or pattern that contradicts this without saying so explicitly.**
 - `docs/03-project-spec.md` — scope, and the list of things deliberately excluded.
 - `docs/04-palette.md` — the colour system and its four traps.
-- `docs/02-six-week-plan.md` — what week it is and what belongs in it.
 
 ## Hard rules
 
@@ -104,8 +103,6 @@ give the demo path a real implementation rather than an empty branch. The
 switch-on procedure is `docs/09-auth-go-live.md`.
 
 ## Current phase
-
-Check `docs/02-six-week-plan.md`.
 
 The map landed early, ahead of the Figma work the plan puts in week 1. That was
 a deliberate call by the author, not a slip — but it means **the map's visual
