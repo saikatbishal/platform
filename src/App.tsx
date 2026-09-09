@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { IndiaMap } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
 import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
@@ -11,6 +11,9 @@ import { StationBoard, BoardBracket } from '@/components/StationBoard.tsx'
 import { PlatformCanopy } from '@/components/PlatformCanopy.tsx'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
 import { formatKm } from '@/lib/distance.ts'
+import { evaluateMilestones } from '@/features/stats/milestones.ts'
+import { Milestones } from '@/features/stats/Milestones.tsx'
+import { PassportCard } from '@/features/passport/PassportCard.tsx'
 
 interface Stats {
   km: number
@@ -61,6 +64,12 @@ export default function App() {
   const showingSamples = store.journeys.length === 0 && !signedIn
   const journeys = showingSamples ? SAMPLE_JOURNEYS : store.journeys
   const [entryOpen, setEntryOpen] = useState(false)
+  const [milestonesOpen, setMilestonesOpen] = useState(false)
+  const [passportOpen, setPassportOpen] = useState(false)
+  const milestones = useMemo(
+    () => evaluateMilestones({ km: stats.km, stations: stats.stations, states: stats.states, journeys }),
+    [stats.km, stats.stations, stats.states, journeys],
+  )
 
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-ground">
@@ -172,6 +181,24 @@ export default function App() {
         </div>
       )}
 
+      <div className="pointer-events-auto absolute bottom-40 left-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => { setMilestonesOpen(true) }}
+          className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+        >
+          Milestones
+        </button>
+        <button
+          type="button"
+          onClick={() => { setPassportOpen(true) }}
+          disabled={!mapData}
+          className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
+        >
+          Passport card
+        </button>
+      </div>
+
       <button
         type="button"
         onClick={() => { setEntryOpen(true) }}
@@ -179,6 +206,33 @@ export default function App() {
       >
         + Log a journey
       </button>
+
+      {milestonesOpen && (
+        <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
+          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
+            <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
+              Milestones
+            </h2>
+            <Milestones milestones={milestones} onClose={() => { setMilestonesOpen(false) }} />
+          </div>
+        </div>
+      )}
+
+      {passportOpen && mapData && (
+        <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
+          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
+            <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
+              Passport card
+            </h2>
+            <PassportCard
+              data={mapData}
+              journeys={journeys}
+              stats={stats}
+              onClose={() => { setPassportOpen(false) }}
+            />
+          </div>
+        </div>
+      )}
 
       {entryOpen && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">

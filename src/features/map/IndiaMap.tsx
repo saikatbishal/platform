@@ -5,8 +5,9 @@ import { usePanZoom, type View } from './usePanZoom.ts'
 import type { MapData } from './useMapData.ts'
 import { drawStationField, drawStationLabels } from './stationField.ts'
 import { placeLabels, type LabelCandidate } from './labels.ts'
-import { routeForJourney, describeRouteFailure, type RouteFailure } from './route.ts'
+import { describeRouteFailure } from './route.ts'
 import { useTrainStops } from './useTrainStops.ts'
+import { useJourneyRoutes } from './useJourneyRoutes.ts'
 import type { Journey } from '@/types/index.ts'
 
 interface Props {
@@ -74,48 +75,13 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
   }, [journeys, requestTrainStops])
 
   /**
-   * Journeys that could not be drawn are kept, not dropped.
-   *
-   * Every one of the three `continue`s below used to be a bare `return []`,
-   * so a journey the map could not route simply ceased to exist: no line, no
-   * warning, no contribution to the totals — while its endpoint dot still
-   * drew from `byCode`, which does not consult the graph. The visible result
-   * was a station pin with no track reaching it and a totals tile quietly
-   * short by one journey. Carrying the failure out of here is what lets both
-   * of those tell the truth instead.
+   * Journeys that could not be drawn are kept, not dropped — see
+   * useJourneyRoutes.ts. Every one of its three failure branches used to be a
+   * bare `return []` here, so a journey the map could not route simply ceased
+   * to exist: no line, no warning, no contribution to the totals — while its
+   * endpoint dot still drew from `byCode`, which does not consult the graph.
    */
-  const { routes, failures } = useMemo(() => {
-    const routes: Array<{ id: string; d: string; km: number; stops: string[]; exact: boolean }> = []
-    const failures: Array<{ journey: Journey; failure: RouteFailure }> = []
-    if (!data) return { routes, failures }
-
-    for (const j of journeys) {
-      // The train's own stop list beats the shortest path when we have it —
-      // `exact` is the difference between a record and a plausible guess.
-      const known = j.trainNumber ? trainStops.get(j.trainNumber) : undefined
-      const { result, failure, exact } = routeForJourney(data.graph, j.fromCode, j.toCode, known)
-      if (!result) {
-        // `failure` is non-null whenever `result` is null — the ?? is for the
-        // type narrowing, not for a case that happens.
-        failures.push({ journey: j, failure: failure ?? { kind: 'no-path' } })
-        continue
-      }
-      const pts: string[] = []
-      for (const code of result.codes) {
-        const s = data.byCode.get(code)
-        if (s) pts.push(`${s.x.toFixed(1)},${s.y.toFixed(1)}`)
-      }
-      if (pts.length < 2) {
-        failures.push({
-          journey: j,
-          failure: { kind: 'undrawable', plotted: pts.length, of: result.codes.length },
-        })
-        continue
-      }
-      routes.push({ id: j.id, d: `M${pts.join('L')}`, km: result.km, stops: result.codes, exact })
-    }
-    return { routes, failures }
-  }, [data, journeys, trainStops])
+  const { routes, failures } = useJourneyRoutes(data, journeys, trainStops)
 
   /**
    * Stations the rail graph has never heard of. Their dots still draw — the

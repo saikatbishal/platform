@@ -29,6 +29,18 @@ export interface Journey {
   note: string | null
   /** Great-circle km, computed on write. Undercounts, because track curves. */
   distanceKm: number
+  /**
+   * "HH:MM", both optional and independent of each other. Not derived from
+   * the timetable: a real train's actual arrival is what the "over 24h"
+   * milestone means, and the schedule data can't tell you that a train ran
+   * six hours late — only the person who was on it can.
+   */
+  departureTime: string | null
+  arrivalTime: string | null
+  /** 0 = arrived the same day as `travelledOn`, 1 = the next day, and so on
+      for a journey that runs more than one night. Meaningless on its own —
+      only read together with `arrivalTime`. */
+  arrivalDayOffset: number
 }
 
 /** What the add-journey form collects. */
