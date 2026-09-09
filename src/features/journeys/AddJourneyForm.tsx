@@ -136,6 +136,10 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
   const [train, setTrain] = useState<string>('')
   const [travelledOn, setTravelledOn] = useState(today())
   const [note, setNote] = useState('')
+  const [showTimes, setShowTimes] = useState(false)
+  const [departureTime, setDepartureTime] = useState('')
+  const [arrivalTime, setArrivalTime] = useState('')
+  const [arrivalDayOffset, setArrivalDayOffset] = useState(0)
 
   // Ask for a station's shard the moment it is picked, so the train list is
   // usually already there by the time both fields are filled.
@@ -162,6 +166,9 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
           travelledOn,
           trainNumber: train || null,
           note: note.trim() || null,
+          departureTime: departureTime || null,
+          arrivalTime: arrivalTime || null,
+          arrivalDayOffset,
         })
       }}
       className="flex flex-col gap-4"
@@ -217,6 +224,66 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
           className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
         />
       </label>
+
+      {showTimes ? (
+        <div className="flex flex-col gap-3 rounded-sm border border-line p-3">
+          <div className="flex items-center justify-between">
+            <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
+              Departure &amp; arrival — optional
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setShowTimes(false)
+                setDepartureTime('')
+                setArrivalTime('')
+                setArrivalDayOffset(0)
+              }}
+              className="text-label font-semibold tracking-label text-ink-faint uppercase hover:text-accent"
+            >
+              Remove
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <label className="flex-1">
+              <span className="mb-1 block text-sm text-ink-faint">Departed</span>
+              <input
+                type="time"
+                value={departureTime}
+                onChange={(e) => { setDepartureTime(e.target.value) }}
+                className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+            <label className="flex-1">
+              <span className="mb-1 block text-sm text-ink-faint">Arrived</span>
+              <input
+                type="time"
+                value={arrivalTime}
+                onChange={(e) => { setArrivalTime(e.target.value) }}
+                className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
+              />
+            </label>
+          </div>
+          {/* A journey of more than a few days is real on Indian rail — Dibrugarh
+              to Kanyakumari runs over three nights — so this cycles rather than
+              being a single overnight toggle. */}
+          <button
+            type="button"
+            onClick={() => { setArrivalDayOffset((d) => (d + 1) % 4) }}
+            className="self-start text-label font-semibold tracking-label text-ink-faint uppercase hover:text-accent"
+          >
+            Arrived: {arrivalDayOffset === 0 ? 'same day' : `+${arrivalDayOffset} day${arrivalDayOffset > 1 ? 's' : ''}`}
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => { setShowTimes(true) }}
+          className="self-start text-label font-semibold tracking-label text-ink-faint uppercase hover:text-accent"
+        >
+          + Add departure &amp; arrival times
+        </button>
+      )}
 
       <label className="block">
         <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
