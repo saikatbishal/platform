@@ -20,7 +20,7 @@ interface Props {
       first wants it; the hook makes sure that only fetches once. */
   loadDistricts?: () => void
   /** Called whenever the derived totals change, so the page can show them. */
-  onStats?: (stats: { km: number; stations: number; states: number; uncounted: number }) => void
+  onStats?: (stats: { km: number; longestKm: number; stations: number; states: number; uncounted: number }) => void
 }
 
 /**
@@ -173,8 +173,9 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
   useEffect(() => {
     if (!data || !onStats) return
     const km = routes.reduce((sum, r) => sum + r.km, 0)
+    const longestKm = routes.reduce((max, r) => Math.max(max, r.km), 0)
     const stations = new Set(routes.flatMap((r) => r.stops)).size
-    onStats({ km, stations, states: visitedStates.size, uncounted: failures.length })
+    onStats({ km, longestKm, stations, states: visitedStates.size, uncounted: failures.length })
   }, [data, routes, visitedStates, failures, onStats])
 
   // Label candidates: cities by importance first, then journey endpoints.

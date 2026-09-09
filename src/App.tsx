@@ -14,6 +14,7 @@ import { formatKm } from '@/lib/distance.ts'
 
 interface Stats {
   km: number
+  longestKm: number
   stations: number
   states: number
   /** Journeys the map could not draw — see route.ts's RouteFailure. Counted
@@ -24,7 +25,7 @@ interface Stats {
 }
 
 export default function App() {
-  const [stats, setStats] = useState<Stats>({ km: 0, stations: 0, states: 0, uncounted: 0 })
+  const [stats, setStats] = useState<Stats>({ km: 0, longestKm: 0, stations: 0, states: 0, uncounted: 0 })
   // The board can be taken down. Signed out, the map underneath is the whole
   // pitch, and a first-time visitor should be able to look at it without
   // dismissing anything permanently — so this is a hinge, not a dismissal, and
@@ -205,9 +206,10 @@ export default function App() {
           ['Kilometres', formatKm(stats.km).replace(' km', '')],
           ['Stations', stats.stations.toLocaleString('en-IN')],
           ['States', String(stats.states)],
+          ['Longest', formatKm(stats.longestKm).replace(' km', '')],
         ] as const).map(([label, value]) => (
-          <div key={label} className="border-r border-line px-4 py-3 last:border-r-0">
-            <span className="tabular block text-2xl leading-none text-cream">{value}</span>
+          <div key={label} className="border-r border-line px-3 py-3 last:border-r-0">
+            <span className="tabular block text-xl leading-none text-cream">{value}</span>
             <span className="mt-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
               {label}
             </span>
