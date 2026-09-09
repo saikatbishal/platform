@@ -27,3 +27,6 @@ npm-debug.log*
 *.log
 /images
 /**/*.pdf
+/Claude outputs
+/docs/social
+/docs/spike

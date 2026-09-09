@@ -69,8 +69,17 @@ interface DistrictProps { district?: string; st_nm?: string }
  */
 async function getJson<T>(path: string): Promise<T> {
   const url = `${import.meta.env.BASE_URL}${path}`
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`${url} — ${res.status}. Run \`npm run assets\`.`)
+  let res: Response
+  try {
+    res = await fetch(url)
+  } catch {
+    // fetch() itself rejected: no HTTP response at all, so this is a
+    // connectivity problem (offline, DNS, timeout), not a missing asset.
+    // Distinguishing it here is what lets the UI stop telling a phone on a
+    // bad connection to run a build script.
+    throw new Error(`Couldn't reach the network to load ${path}.`)
+  }
+  if (!res.ok) throw new Error(`${url} came back ${res.status}.`)
   return (await res.json()) as T
 }
 

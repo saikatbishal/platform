@@ -197,10 +197,40 @@ async function main() {
   // 6. Neighbours — Sri Lanka, drawn at ghost opacity so the southern sea
   //    doesn't pretend the island isn't there. Sits in the sea layer, not the
   //    land layer: it is scenery, never a state to unlock.
+  /*
+   * Neighbours — scenery, never states to unlock.
+   *
+   * This was Sri Lanka alone, which left every land border drawn as open sea.
+   * That is not merely bare: it is wrong, and it put stations in the water.
+   * The Sealdah–Gede line ends at the Bangladesh border and Darsana is over
+   * it, so Gede, Banpur, Harish Nagar and Darsana all sat in what looked like
+   * ocean and was in fact Bangladesh. Five of the nineteen stations outside
+   * the landmass are inside a neighbour, and drawing the neighbours is the
+   * honest fix — the alternative is moving stations to suit a map that is
+   * missing a country.
+   *
+   * `-erase` against India's own outline is what keeps this uncontentious.
+   * India's polygon comes from the Indian source and is authoritative here;
+   * Natural Earth draws some of these boundaries differently, and without the
+   * erase the two would overlap and contradict each other along Kashmir.
+   * Erased, a neighbour can only ever fill space India's own outline does not
+   * claim, so there is nothing to disagree about and no double-drawn land.
+   *
+   * Clipped to the map's own extent, because most of China and Pakistan is
+   * nowhere near the frame. Whole thing costs 3 KB gzipped.
+   */
+  const NEIGHBOUR_NAMES = [
+    'Bangladesh', 'Nepal', 'Bhutan', 'Myanmar', 'Pakistan', 'China', 'Sri Lanka',
+  ]
   const neighbors = await run(
-    `-i countries.geojson -filter 'ADMIN === "Sri Lanka"' -filter-fields ADMIN ` +
-      '-simplify 20% keep-shapes -o format=topojson precision=0.0001 neighbors.topo.json',
-    { 'countries.geojson': countries },
+    `-i countries.geojson -filter '${NEIGHBOUR_NAMES.map((n) => `ADMIN === "${n}"`).join(' || ')}' ` +
+      '-filter-fields ADMIN -clip bbox=58,2,102,40 -simplify 20% keep-shapes ' +
+      // Erase last, deliberately. Simplifying after it moves the boundary back
+      // across the line the erase just cut, which put neighbour land inside
+      // India again — measurably: 8 vertices, before this order was fixed.
+      '-erase source=outline.geojson ' +
+      '-o format=topojson precision=0.0001 neighbors.topo.json',
+    { 'countries.geojson': countries, 'outline.geojson': outlineGeo['outline.geojson']! },
   )
 
   const files: Record<string, string> = {
