@@ -339,11 +339,21 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
       {error ? (
         <div className="grid h-full place-items-center p-8 text-center">
           <div className="flex max-w-sm flex-col gap-3">
-            <p className="font-semibold text-vermillion">The map data isn&rsquo;t there yet.</p>
+            <p className="font-semibold text-vermillion">The map couldn&rsquo;t load.</p>
             <p className="text-sm text-ink-soft">{error}</p>
-            <p className="text-sm text-ink-faint">
-              Run <code className="text-ink-soft">npm run assets</code> and reload.
-            </p>
+            {import.meta.env.DEV ? (
+              <p className="text-sm text-ink-faint">
+                Run <code className="text-ink-soft">npm run assets</code> and reload.
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => location.reload()}
+                className="text-sm text-ink-faint underline underline-offset-2 hover:text-accent"
+              >
+                Check your connection and try again
+              </button>
+            )}
           </div>
         </div>
       ) : !data ? (
