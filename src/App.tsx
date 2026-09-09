@@ -66,6 +66,11 @@ export default function App() {
   const [entryOpen, setEntryOpen] = useState(false)
   const [milestonesOpen, setMilestonesOpen] = useState(false)
   const [passportOpen, setPassportOpen] = useState(false)
+  // Card view at sm and up always shows all four — this only governs the
+  // phone list, and starts collapsed so the totals don't compete with the
+  // sign-in card and the log-journey/milestones buttons for the same strip
+  // of screen on first open.
+  const [statsExpanded, setStatsExpanded] = useState(false)
   const milestones = useMemo(
     () => evaluateMilestones({ km: stats.km, stations: stats.stations, states: stats.states, journeys }),
     [stats.km, stats.stations, stats.states, journeys],
@@ -181,31 +186,111 @@ export default function App() {
         </div>
       )}
 
-      <div className="pointer-events-auto absolute bottom-40 left-3 flex gap-2">
-        <button
-          type="button"
-          onClick={() => { setMilestonesOpen(true) }}
-          className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+      {/* Stacked bottom-up in one flex column, not three independently
+          positioned elements at fixed pixel offsets: the stats list below is
+          one row on a wide screen but up to six on a phone, and a fixed
+          `bottom-40`/`bottom-24` tuned for the short version is exactly what
+          let the tall version paint over these buttons. First DOM child sits
+          visually lowest with `flex-col-reverse`, so stats stays first here
+          and everything else stacks above however tall it turns out to be. */}
+      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col-reverse items-start gap-2">
+        <section
+          aria-label="Your totals"
+          className="flex flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex-row"
         >
-          Milestones
-        </button>
-        <button
-          type="button"
-          onClick={() => { setPassportOpen(true) }}
-          disabled={!mapData}
-          className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
-        >
-          Passport card
-        </button>
-      </div>
+          {/* Kilometres always shows and doubles as the phone list's
+              expand/collapse control — a `<button>` rather than a `<div>` so
+              the whole row is one thumb-sized tap target, not a tiny
+              chevron. Inert at sm and up, where the card view never
+              collapses and this control would have nothing to do. */}
+          <button
+            type="button"
+            onClick={() => { setStatsExpanded((e) => !e) }}
+            aria-expanded={statsExpanded}
+            className="pointer-events-auto flex items-baseline gap-1.5 border-b border-line px-3 py-2 text-left last:border-b-0 sm:pointer-events-none sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0"
+          >
+            <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
+              Kilometres
+            </span>
+            <span className="text-ink-faint sm:hidden">–</span>
+            <span className="tabular text-sm leading-none text-cream sm:text-xl">
+              {formatKm(stats.km).replace(' km', '')}
+            </span>
+            <span aria-hidden="true" className="ml-auto text-ink-faint sm:hidden">
+              {statsExpanded ? '▾' : '▸'}
+            </span>
+          </button>
+          {([
+            ['Stations', stats.stations.toLocaleString('en-IN')],
+            ['States', String(stats.states)],
+            ['Longest', formatKm(stats.longestKm).replace(' km', '')],
+          ] as const).map(([label, value]) => (
+            <div
+              key={label}
+              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0`}
+            >
+              <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
+                {label}
+              </span>
+              <span className="text-ink-faint sm:hidden">–</span>
+              <span className="tabular text-sm leading-none text-cream sm:text-xl">{value}</span>
+            </div>
+          ))}
+          {stats.uncounted > 0 && (
+            <div
+              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line bg-surface-2 px-3 py-2 last:border-b-0 sm:flex sm:flex-col-reverse sm:items-center sm:gap-0 sm:border-b-0 sm:border-l sm:py-3`}
+              title={
+                `${stats.uncounted} ${stats.uncounted === 1 ? 'journey is' : 'journeys are'} not ` +
+                'included in these totals: the rail graph has no route for them, so their ' +
+                'distance and stops are unknown rather than zero. Their end stations are ' +
+                'drawn hollow on the map.'
+              }
+            >
+              <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1">
+                Not drawn
+              </span>
+              <span className="text-ink-faint sm:hidden">–</span>
+              <span className="tabular text-sm leading-none text-oxide">{stats.uncounted}</span>
+            </div>
+          )}
+          {(demo || showingSamples) && (
+            <div className={`${statsExpanded ? 'block' : 'hidden'} border-b border-line bg-surface-2 px-3 py-2 last:border-b-0 sm:flex sm:items-center sm:justify-center sm:border-b-0 sm:border-l sm:py-3`}>
+              <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
+                {/* "Sample" only while the samples are actually what is drawn —
+                    once someone logs a journey the totals are their own, and
+                    labelling them a sample would be a lie. */}
+                {showingSamples ? 'Sample' : 'Demo'}
+              </span>
+            </div>
+          )}
+        </section>
 
-      <button
-        type="button"
-        onClick={() => { setEntryOpen(true) }}
-        className="pointer-events-auto absolute bottom-24 left-3 rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
-      >
-        + Log a journey
-      </button>
+        <button
+          type="button"
+          onClick={() => { setEntryOpen(true) }}
+          className="pointer-events-auto rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
+        >
+          + Log a journey
+        </button>
+
+        <div className="pointer-events-auto flex gap-2">
+          <button
+            type="button"
+            onClick={() => { setMilestonesOpen(true) }}
+            className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+          >
+            Milestones
+          </button>
+          <button
+            type="button"
+            onClick={() => { setPassportOpen(true) }}
+            disabled={!mapData}
+            className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
+          >
+            Passport card
+          </button>
+        </div>
+      </div>
 
       {milestonesOpen && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
@@ -252,52 +337,6 @@ export default function App() {
         </div>
       )}
 
-      <section
-        aria-label="Your totals"
-        className="pointer-events-none absolute bottom-3 left-3 flex overflow-hidden rounded-sm border border-line bg-surface"
-      >
-        {([
-          ['Kilometres', formatKm(stats.km).replace(' km', '')],
-          ['Stations', stats.stations.toLocaleString('en-IN')],
-          ['States', String(stats.states)],
-          ['Longest', formatKm(stats.longestKm).replace(' km', '')],
-        ] as const).map(([label, value]) => (
-          <div key={label} className="border-r border-line px-3 py-3 last:border-r-0">
-            <span className="tabular block text-xl leading-none text-cream">{value}</span>
-            <span className="mt-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
-              {label}
-            </span>
-          </div>
-        ))}
-        {stats.uncounted > 0 && (
-          <div
-            className="grid place-items-center border-l border-line bg-surface-2 px-3"
-            title={
-              `${stats.uncounted} ${stats.uncounted === 1 ? 'journey is' : 'journeys are'} not ` +
-              'included in these totals: the rail graph has no route for them, so their ' +
-              'distance and stops are unknown rather than zero. Their end stations are ' +
-              'drawn hollow on the map.'
-            }
-          >
-            <span className="tabular block text-center text-sm leading-none text-oxide">
-              {stats.uncounted}
-            </span>
-            <span className="mt-1 block text-label font-semibold tracking-label text-ink-faint uppercase">
-              Not drawn
-            </span>
-          </div>
-        )}
-        {(demo || showingSamples) && (
-          <div className="grid place-items-center border-l border-line bg-surface-2 px-3">
-            <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
-              {/* "Sample" only while the samples are actually what is drawn —
-                  once someone logs a journey the totals are their own, and
-                  labelling them a sample would be a lie. */}
-              {showingSamples ? 'Sample' : 'Demo'}
-            </span>
-          </div>
-        )}
-      </section>
     </main>
   )
 }
