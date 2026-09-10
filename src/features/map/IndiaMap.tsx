@@ -8,6 +8,7 @@ import { placeLabels, type LabelCandidate } from './labels.ts'
 import { describeRouteFailure } from './route.ts'
 import { useTrainStops } from './useTrainStops.ts'
 import { useJourneyRoutes } from './useJourneyRoutes.ts'
+import { RouteTooltip } from './RouteTooltip.tsx'
 import type { Journey } from '@/types/index.ts'
 
 interface Props {
@@ -82,6 +83,39 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
    * endpoint dot still drew from `byCode`, which does not consult the graph.
    */
   const { routes, failures } = useJourneyRoutes(data, journeys, trainStops)
+
+  const journeyById = useMemo(() => new Map(journeys.map((j) => [j.id, j])), [journeys])
+
+  /**
+   * Routes, oldest first, so the most recently travelled one draws — and
+   * therefore hit-tests — last. Where two journeys share a stretch of track,
+   * that is what puts the newer one on top without this file ever having to
+   * ask "which of these is more recent" itself; SVG's own paint order
+   * answers it. Doesn't touch `routes` itself: stats below fold routes into
+   * sums and sets, which don't care about order.
+   */
+  const routesForDisplay = useMemo(
+    () => [...routes].sort((a, b) => {
+      const da = journeyById.get(a.id)?.travelledOn ?? ''
+      const db = journeyById.get(b.id)?.travelledOn ?? ''
+      return da < db ? -1 : da > db ? 1 : 0
+    }),
+    [routes, journeyById],
+  )
+
+  /** The journey whose route is under the cursor or was last tapped, and
+      where to draw its tooltip. Hover live-follows the mouse; a tap (or a
+      click) pins it until something else is tapped — see the stage's own
+      onClick below, which clears this when the tap lands on empty map. */
+  const [activeJourneyId, setActiveJourneyId] = useState<string | null>(null)
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!activeJourneyId) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setActiveJourneyId(null) }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [activeJourneyId])
 
   /**
    * Stations the rail graph has never heard of. Their dots still draw — the
@@ -301,6 +335,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
   return (
     <div
       ref={stage}
+      onClick={() => { setActiveJourneyId(null) }}
       className={`absolute inset-0 touch-none bg-sea [cursor:grab] active:[cursor:grabbing]${seaStill ? ' sea-paused' : ''}`}
     >
       {error ? (
@@ -495,10 +530,39 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
                 is --route-halo now, not --route-taken — see tokens.css — so
                 the travelled route reads as a dark line cut into a field of
                 light rather than trying to be a dim version of itself. */}
-            {routes.map((r) => (
+            {/* The actual hit target for hover/tap: `pointer-events` is
+                `none` on the whole svg (so it never steals a drag from the
+                stage), re-enabled here to just the stroke, which is this
+                path's only paint anyway (`fill="none"`) — a click a few
+                pixels off the visible line still lands inside the 9px halo,
+                which matters more on a touchscreen than a cursor.
+                `routesForDisplay` (oldest first) is what makes the most
+                recently travelled journey the one that responds where two
+                overlap: it paints last, on top, so it is what the pointer
+                hits. */}
+            {routesForDisplay.map((r) => (
               <path key={`halo-${r.id}`} d={r.d} fill="none"
-                className="stroke-route-halo opacity-15 [vector-effect:non-scaling-stroke]"
-                strokeWidth={9} strokeLinecap="round" strokeLinejoin="round" />
+                className="stroke-route-halo opacity-15 [vector-effect:non-scaling-stroke] [pointer-events:stroke]"
+                strokeWidth={9} strokeLinecap="round" strokeLinejoin="round"
+                onPointerEnter={(e) => {
+                  if (e.pointerType !== 'mouse') return
+                  setActiveJourneyId(r.id)
+                  setTooltipPos({ x: e.clientX, y: e.clientY })
+                }}
+                onPointerMove={(e) => {
+                  if (e.pointerType !== 'mouse') return
+                  setTooltipPos({ x: e.clientX, y: e.clientY })
+                }}
+                onPointerLeave={(e) => {
+                  if (e.pointerType !== 'mouse') return
+                  setActiveJourneyId(null)
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setActiveJourneyId(r.id)
+                  setTooltipPos({ x: e.clientX, y: e.clientY })
+                }}
+              />
             ))}
             {/* Solid means the line is a record: the journey named a train and
                 this is that train's own stop list. Dashed means it is the
@@ -506,7 +570,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
                 plausible answer, not a true one. route.ts has always drawn
                 that distinction and returned `exact`; nothing had ever read
                 it, so a guess and a record looked identical. */}
-            {routes.map((r) => (
+            {routesForDisplay.map((r) => (
               <path key={`line-${r.id}`} d={r.d} fill="none"
                 className={`stroke-route-taken [vector-effect:non-scaling-stroke]${
                   r.exact ? '' : ' [stroke-dasharray:9_5]'
@@ -575,6 +639,22 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
           aria-label={seaStill ? 'Let the sea move again' : 'Hold the sea still'}
           className={`h-10 w-10 text-ink-soft hover:bg-surface-2 hover:text-accent${seaStill ? ' opacity-45' : ''}`}>≈</button>
       </div>
+
+      {activeJourneyId && tooltipPos && (() => {
+        const journey = journeyById.get(activeJourneyId)
+        const route = routes.find((r) => r.id === activeJourneyId)
+        if (!journey || !route) return null
+        return (
+          <RouteTooltip
+            journey={journey}
+            route={route}
+            fromName={data.byCode.get(journey.fromCode)?.name ?? journey.fromCode}
+            toName={data.byCode.get(journey.toCode)?.name ?? journey.toCode}
+            x={tooltipPos.x}
+            y={tooltipPos.y}
+          />
+        )
+      })()}
       </>
       )}
     </div>

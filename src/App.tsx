@@ -109,13 +109,21 @@ export default function App() {
       )}
 
       {!signedIn && auth.status !== 'loading' && (
-        <div className="pointer-events-auto absolute inset-x-0 bottom-48 flex justify-center px-4 sm:inset-x-auto sm:right-4 sm:top-16 sm:bottom-auto sm:px-0">
+        <div
+          className={`pointer-events-auto absolute inset-x-0 flex justify-center px-4 sm:inset-x-auto sm:right-4 sm:top-16 sm:bottom-auto sm:px-0 ${
+            statsExpanded ? 'bottom-96' : 'bottom-48'
+          }`}
+        >
           {/* Bottom-anchored on a phone so the button is in thumb reach, but
               clear of the map's own furniture: the zoom/fit/sea stack is four
               40px buttons at bottom-3, so it ends 174px up, and bottom-48
-              (192px) is the first step that leaves it fully tappable. The
-              stat tiles at bottom-3 clear too. On sm and up the card moves to
-              the top-right corner, where nothing else lives. */}
+              (192px) clears the collapsed stats/journey/milestones stack
+              below. That stack can run to five or six rows when someone
+              expands the phone stats list, which reaches high enough to sit
+              under this card — bottom-96 while `statsExpanded` is true keeps
+              them apart without needing the two to know each other's exact
+              height. On sm and up the card moves to the top-right corner,
+              where nothing else lives, and this never applies. */}
           {/* The way in is a station name board hung off a bracket, not a
               generic auth card. Structure borrowed from Relume's Log In 3
               (mark above, one column, heading + description, stacked actions)
