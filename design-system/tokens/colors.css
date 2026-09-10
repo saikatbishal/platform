@@ -1,0 +1,152 @@
+/* ============================================================
+   Colour — sampled from five reference photographs of Indian
+   Railways rolling stock and signage, 28 Aug 2026. Every value is
+   measured from a real painted surface.
+
+   DARK IS THE PRIMARY THEME, so bare :root carries it.
+
+   Four traps, in full:
+   1. --accent (#EAB143) is a FILL, not a text colour. On white it is 2.0:1.
+      Navy on that yellow is 7.8:1 — that is how every station board works.
+   2. --vermillion is not a second accent. Errors and one live marker only.
+   3. --cream is for large numerals only. Muddy below ~20px.
+   4. Never use a neutral grey. Every neutral here is warm. Use --steel.
+   ============================================================ */
+
+:root {
+  /* grounds — the coach, deepened one step so surfaces sit above it */
+  --ground:        #0A1C33;
+  --surface:       #0D2242;   /* the measured coach paint, unaltered */
+  --surface-2:     #153754;   /* the coach's lighter stripe */
+  --line:          #1F4568;
+  --line-strong:   #2E5C82;
+
+  /* text */
+  --ink:           #E9F0F6;   /* 14.9:1 on ground */
+  --ink-soft:      #A2B7C9;   /*  8.3:1 on ground */
+  --ink-faint:     #7791A8;   /*  5.2:1 — labels only */
+
+  /* accent — station board yellow */
+  --accent:        #EAB143;   /*  8.9:1 on ground */
+  --accent-wash:   #332818;   /* callout fill; accent on it = 7.5:1 */
+  --accent-dim:    #8A6420;   /* inactive route strokes */
+  --accent-fill:   #EAB143;   /* alias: in dark, accent already is the fill */
+
+  /* signature colours */
+  --cream:         #EECB9A;   /* stencil cream — LARGE NUMERALS ONLY */
+  --vermillion:    #E85C50;   /* errors + the one "you are here" marker */
+  --oxide:         #C87352;   /* planned, not yet travelled */
+  --steel:         #A3988F;   /* unvisited stations, disabled, inactive track */
+
+  /* the map's own surfaces. Land is not a card: cards sit above the page,
+     land IS the page. */
+  --land:          #0C2140;
+  --land-visited:  #1E4A73;   /* a state you have travelled through */
+  --dot:           #7E93A6;   /* the 8,696-station field, drawn on canvas */
+
+  /* the sea — the reference photos' sky panel #98C5C8, darkened toward the
+     coach navy. Decorative, so contrast rules do not bind it. */
+  --sea:           #081D2B;
+  --sea-ink:       #4D7A8C;
+
+  /* ---- the station board -------------------------------------------------
+     A painted metal object, not a UI surface. Its paint does NOT change with
+     the page theme: an Alwar Junction board is the same yellow at noon and at
+     2 a.m. Declared once, at :root, and deliberately absent from the light
+     block below — the one exception to trap 4, because this is paint, not
+     palette. Navy on this yellow measures 7.8:1. */
+  --board:        #EAB143;   /* board yellow, full strength, both themes */
+  --board-ink:    #12283F;   /* the navy the letters are stencilled in */
+  --board-edge:   #F7F3EA;   /* the white enamel border around every board */
+  --board-frame:  #6E645A;   /* the bracket and posts it hangs from */
+
+  /* map semantics — derived, so intent lives in one place */
+  --route-taken:   #000000;   /* black; visibility comes from the halo */
+  --route-halo:    var(--ink);
+  --route-planned: var(--oxide);
+  --route-idle:    var(--line);
+  --station-seen:  var(--cream);
+  --station-new:   var(--steel);
+  --you-are-here:  var(--vermillion);
+}
+
+/* Light when the OS asks for it. Plain `:root` rather than
+   `:root:not([data-theme="dark"])`: the explicit-dark block below re-asserts
+   the dark values at higher specificity, which gets the same result — a
+   chosen theme always beats the OS — through selectors a tooling pass can
+   read as theme scopes. */
+@media (prefers-color-scheme: light) {
+  :root {
+  --ground:      #F4F1EA;   /* platform whitewash, warm */
+  --surface:     #FCFAF6;
+  --surface-2:   #EAE5DA;
+  --line:        #D8D1C3;
+  --line-strong: #B9B0A0;
+  --ink:         #12283F;   /* the coach navy doing duty as ink */
+  --ink-soft:    #3F5A73;
+  --ink-faint:   #6B8299;
+  --accent:      #8A5A0F;   /* yellow darkened until readable on paper */
+  --accent-wash: #F5E7CC;
+  --accent-dim:  #C79A47;
+  --accent-fill: #EAB143;   /* the true board yellow — FILL ONLY */
+  --cream:       #8A6420;   /* cream cannot survive on white; becomes bronze */
+  --vermillion:  #B4302A;
+  --oxide:       #6B3524;
+  --steel:       #6E645A;
+  --land:        #EDE8DD;
+  --land-visited:#D5B87E;
+  --dot:         #8C8375;
+  --sea:         #E2ECEA;
+  --sea-ink:     #5F8B92;
+  }
+}
+
+/* The explicit toggles. A chosen light beats a dark OS, and a chosen dark
+   beats a light one. */
+:root[data-theme="light"] {
+  --ground:      #F4F1EA;   /* platform whitewash, warm */
+  --surface:     #FCFAF6;
+  --surface-2:   #EAE5DA;
+  --line:        #D8D1C3;
+  --line-strong: #B9B0A0;
+  --ink:         #12283F;   /* the coach navy doing duty as ink */
+  --ink-soft:    #3F5A73;
+  --ink-faint:   #6B8299;
+  --accent:      #8A5A0F;   /* yellow darkened until readable on paper */
+  --accent-wash: #F5E7CC;
+  --accent-dim:  #C79A47;
+  --accent-fill: #EAB143;   /* the true board yellow — FILL ONLY */
+  --cream:       #8A6420;   /* cream cannot survive on white; becomes bronze */
+  --vermillion:  #B4302A;
+  --oxide:       #6B3524;
+  --steel:       #6E645A;
+  --land:        #EDE8DD;
+  --land-visited:#D5B87E;
+  --dot:         #8C8375;
+  --sea:         #E2ECEA;
+  --sea-ink:     #5F8B92;
+}
+
+:root[data-theme="dark"] {
+  --ground:      #0A1C33;
+  --surface:     #0D2242;
+  --surface-2:   #153754;
+  --line:        #1F4568;
+  --line-strong: #2E5C82;
+  --ink:         #E9F0F6;
+  --ink-soft:    #A2B7C9;
+  --ink-faint:   #7791A8;
+  --accent:      #EAB143;
+  --accent-wash: #332818;
+  --accent-dim:  #8A6420;
+  --accent-fill: #EAB143;
+  --cream:       #EECB9A;
+  --vermillion:  #E85C50;
+  --oxide:       #C87352;
+  --steel:       #A3988F;
+  --land:        #0C2140;
+  --land-visited:#1E4A73;
+  --dot:         #7E93A6;
+  --sea:         #081D2B;
+  --sea-ink:     #4D7A8C;
+}

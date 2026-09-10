@@ -1,0 +1,49 @@
+/* ============================================================
+   Space, radius, shadow, motion.
+
+   These are read off the app rather than designed as a system: the
+   spacing steps are the Tailwind 4px scale as used, and the radii are
+   the four values the app actually contains — no more.
+   ============================================================ */
+
+:root {
+  /* Spacing — 4px scale. --space-2 (8px) is the default gap between
+     stacked controls; --space-5 (20px) is a sheet's padding. */
+  --space-1:  0.25rem;   /* 4  */
+  --space-2:  0.5rem;    /* 8  */
+  --space-3:  0.75rem;   /* 12 */
+  --space-4:  1rem;      /* 16 */
+  --space-5:  1.25rem;   /* 20 */
+  --space-6:  1.5rem;    /* 24 */
+  --space-8:  2rem;      /* 32 */
+  --space-12: 3rem;      /* 48 */
+
+  /* Radius. This is a signage system, so corners are nearly square.
+     --radius-hair (2px) is the app's default; --radius-sheet (8px) is
+     reserved for the bottom sheet and modal. Nothing is pill-shaped
+     except the avatar chip, which is a circle. */
+  --radius-hair:  2px;   /* header badge, station board, board chip */
+  --radius-sm:    4px;   /* buttons, inputs, cards, list rows */
+  --radius-sheet: 8px;   /* modal / bottom sheet */
+  --radius-round: 999px; /* avatar only */
+
+  /* Borders. Everything is a hairline except the board's white enamel. */
+  --border-hair:  1px;
+  --border-enamel: 2px;
+
+  /* Shadow. Two only. The board's is a hard 2px offset with no blur —
+     a painted object sitting proud of its bracket, not a floating card.
+     The sheet's is a soft drop for the one element that leaves the plane. */
+  --shadow-board: 0 2px 0 0 rgba(18, 40, 63, 0.35);
+  --shadow-sheet: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+
+  /* Motion. Short and flat: this app has one animation with character
+     (the sea), and everything else is a 150ms colour change. */
+  --duration-fast: 150ms; /* @kind other */
+  --duration-sea:  10s; /* @kind other */
+  --ease-standard: ease; /* @kind other */
+  --ease-sea:      ease-in-out; /* @kind other */
+
+  /* Minimum touch target. Mobile-first; nothing tappable goes below it. */
+  --tap-min: 44px;
+}

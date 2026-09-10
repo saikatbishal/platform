@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<!-- @template name="App screen" description="Platform's full-bleed screen shell: nameplate, floating chrome, totals strip." -->
+<helmet><script src="./ds-base.js"></script><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" /></helmet>
+<main style="position:relative;height:100vh;width:100%;overflow:hidden;background:var(--ground);font-family:var(--font-body);color:var(--ink)">
+<div style="position:absolute;inset:0;background:var(--land);border:1px solid var(--line-strong)"></div>
+<div style="position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px">
+<p style="margin:0;max-width:42ch;font-size:0.8125rem;line-height:1.5;color:var(--ink-faint)">The map goes here. Replace this block with the product's own canvas — the real one is hand-drawn SVG over Survey-of-India geometry, never a tile layer.</p>
+</div>
+<header style="position:absolute;top:12px;left:12px">
+<x-import component-from-global-scope="PlatformDesignSystem_1d54fc.VersionBadge" name="Platform" version="v0.1" hint-size="140px,28px"></x-import>
+</header>
+<div style="position:absolute;top:12px;right:12px">
+<x-import component-from-global-scope="PlatformDesignSystem_1d54fc.UserMenu" user="{{ user }}" hint-size="44px,44px"></x-import>
+</div>
+<div style="position:absolute;bottom:12px;left:12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start">
+<div style="display:flex;gap:8px">
+<x-import component-from-global-scope="PlatformDesignSystem_1d54fc.Button" size="sm" hint-size="110px,36px">Milestones</x-import>
+<x-import component-from-global-scope="PlatformDesignSystem_1d54fc.Button" size="sm" hint-size="130px,36px">Passport card</x-import>
+</div>
+<x-import component-from-global-scope="PlatformDesignSystem_1d54fc.Button" hint-size="160px,44px">+ Log a journey</x-import>
+<x-import component-from-global-scope="PlatformDesignSystem_1d54fc.StatBar" stats="{{ stats }}" hint-size="420px,64px"></x-import>
+</div>
+</main>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:720},&quot;userName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Saikat Bishal&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;userEmail&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;saikat@example.com&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;km&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;4,182&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Totals&quot;},&quot;stations&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;21&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Totals&quot;},&quot;states&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;7&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Totals&quot;},&quot;longest&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;1,662&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Totals&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      user: { name: this.props.userName ?? 'Saikat Bishal', email: this.props.userEmail ?? 'saikat@example.com' },
+      stats: [
+        { label: 'Kilometres', value: this.props.km ?? '4,182' },
+        { label: 'Stations', value: this.props.stations ?? '21' },
+        { label: 'States', value: this.props.states ?? '7' },
+        { label: 'Longest', value: this.props.longest ?? '1,662' },
+      ],
+    }
+  }
+}
+</script>
+</body>
+</html>

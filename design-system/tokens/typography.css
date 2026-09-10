@@ -1,0 +1,59 @@
+/* ============================================================
+   Type — three roles, one scale.
+
+   15px base, x1.25 upward. Below the base it steps by a pixel or two
+   instead: at 11-15px a 1.25 ratio jumps straight past the sizes UI
+   chrome actually needs. Line-height falls as size rises.
+
+   --text-label (11px) is the bottom step. Nothing below it.
+   ============================================================ */
+
+:root {
+  /* Families. Both text stacks list the script faces after Archivo rather
+     than switching stacks per element: a browser resolves a stack per
+     character, so the board's Devanagari line reaches Plex Devanagari and its
+     Bengali line reaches Noto without anything having to know which script it
+     holds. Add a script by adding a family here and nowhere else. */
+  --font-display: 'Archivo', 'Archivo Fallback', system-ui, sans-serif;
+  --font-body:    'Archivo', 'IBM Plex Sans Devanagari', 'Noto Sans Bengali',
+                  'Archivo Fallback', system-ui, sans-serif;
+  --font-mono:    'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Sizes */
+  --text-label: 0.6875rem;  /* 11 */
+  --text-xs:    0.75rem;    /* 12 */
+  --text-sm:    0.8125rem;  /* 13 */
+  --text-base:  0.9375rem;  /* 15 */
+  --text-lg:    1.1875rem;  /* 19 */
+  --text-xl:    1.5rem;     /* 24 */
+  --text-2xl:   1.875rem;   /* 30 */
+  --text-3xl:   2.3125rem;  /* 37 */
+
+  /* Line heights, paired to the sizes above */
+  --leading-label: 1;
+  --leading-xs:    1.45;
+  --leading-sm:    1.5;
+  --leading-base:  1.6;
+  --leading-lg:    1.35;
+  --leading-xl:    1.2;
+  --leading-2xl:   1.12;
+  --leading-3xl:   1.05;
+
+  /* One fluid step, for the station board's name line only. It is a painted
+     object that should fill its board at any width. */
+  --text-board:    clamp(1.5rem, 7vw, 1.875rem);
+  --leading-board: 1.1;
+
+  /* Two tracking values, not the six that had accumulated. Uppercase labels
+     need air; a station code needs more, because it is read as letters rather
+     than as a word. --tracking-board sits between: painted signage read at
+     distance, but still a word. */
+  --tracking-label: 0.14em;
+  --tracking-code:  0.2em;
+  --tracking-board: 0.12em;
+
+  /* Weights actually used: 400 body, 600 labels/codes, 800 the board + headings */
+  --weight-regular:  400;
+  --weight-semibold: 600;
+  --weight-black:    800;
+}
