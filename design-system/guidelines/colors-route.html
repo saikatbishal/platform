@@ -1,0 +1,15 @@
+<!-- @dsCard group="Colors" viewport="700x160" name="Route semantics" subtitle="Six derived tokens, one job each" -->
+<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>body{margin:0;padding:16px;background:var(--ground);font-family:var(--font-body);color:var(--ink)}
+.sw{display:flex;gap:0;border-radius:var(--radius-sm);overflow:hidden;border:1px solid var(--line)}
+.sw>div{flex:1;padding:10px 10px 12px;display:flex;flex-direction:column;justify-content:flex-end;min-height:96px}
+.n{font-size:11px;font-weight:600;letter-spacing:.06em;line-height:1.3}
+.h{font-family:var(--font-mono);font-size:10px;opacity:.8;margin-top:2px}
+.leg{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--ink-soft);margin-bottom:9px}
+.leg svg{flex:0 0 200px}</style></head><body>
+<div>
+<div class="leg"><svg height="14" viewBox="0 0 200 14"><path d="M4 7 H196" stroke="var(--route-halo)" stroke-width="7" stroke-linecap="round" opacity=".35"/><path d="M4 7 H196" stroke="var(--route-taken)" stroke-width="2.5" stroke-linecap="round"/></svg><span><b style="color:var(--ink)">--route-taken</b> · black, read through a soft <code style="font-family:var(--font-mono)">--route-halo</code> glow</span></div>
+<div class="leg"><svg height="14" viewBox="0 0 200 14"><path d="M4 7 H196" stroke="var(--route-planned)" stroke-width="2.5" stroke-dasharray="7 6" stroke-linecap="round"/></svg><span><b style="color:var(--ink)">--route-planned</b> · oxide, dashed</span></div>
+<div class="leg"><svg height="14" viewBox="0 0 200 14"><path d="M4 7 H196" stroke="var(--route-idle)" stroke-width="1.5"/></svg><span><b style="color:var(--ink)">--route-idle</b> · the rest of the network, structural</span></div>
+<div class="leg"><svg height="14" viewBox="0 0 200 14"><circle cx="40" cy="7" r="4" fill="var(--station-seen)"/><circle cx="100" cy="7" r="3.5" fill="var(--station-new)"/><circle cx="160" cy="7" r="5" fill="var(--you-are-here)"/></svg><span><b style="color:var(--ink)">--station-seen</b> · <b style="color:var(--ink)">--station-new</b> · <b style="color:var(--ink)">--you-are-here</b> (exactly one on screen)</span></div>
+</div></body></html>

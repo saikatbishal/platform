@@ -1,0 +1,343 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": []
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/auth/**",
+              "components/brand/**",
+              "components/core/**",
+              "components/data/**",
+              "components/forms/**",
+              "ui_kits/platform-app/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "Literal[value=/font-family\\s*:\\s*(?!['\\\"]?(?:Archivo Fallback|Archivo|IBM Plex Mono|IBM Plex Sans Devanagari|Noto Sans Bengali))/i]",
+        "message": "Font not provided by the design system. Available: Archivo Fallback, Archivo, IBM Plex Mono, IBM Plex Sans Devanagari, Noto Sans Bengali."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='BoardChip'] > JSXAttribute > JSXIdentifier[name!=/^(?:code|onClick|children|key|ref|className|style|children)$/]",
+        "message": "<BoardChip> doesn't accept that prop. Declared props: code, onClick, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|size|disabled|type|onClick|children|style|key|ref|className|style|children)$/]",
+        "message": "<Button> doesn't accept that prop. Declared props: variant, size, disabled, type, onClick, children, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:primary|outline|quiet)$/]",
+        "message": "<Button> variant must be one of 'primary' | 'outline' | 'quiet'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md)$/]",
+        "message": "<Button> size must be one of 'sm' | 'md'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='type'] > Literal[value!=/^(?:button|submit)$/]",
+        "message": "<Button> type must be one of 'button' | 'submit'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='MilestoneStatus'] > JSXAttribute > JSXIdentifier[name!=/^(?:id|label|detail|achieved|key|ref|className|style|children)$/]",
+        "message": "<MilestoneStatus> doesn't accept that prop. Declared props: id, label, detail, achieved."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PlatformCanopy'] > JSXAttribute > JSXIdentifier[name!=/^(?:height|key|ref|className|style|children)$/]",
+        "message": "<PlatformCanopy> doesn't accept that prop. Declared props: height."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Sheet'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|open|onClose|width|children|key|ref|className|style|children)$/]",
+        "message": "<Sheet> doesn't accept that prop. Declared props: title, open, onClose, width, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SignInButton'] > JSXAttribute > JSXIdentifier[name!=/^(?:mode|busy|onSignIn|key|ref|className|style|children)$/]",
+        "message": "<SignInButton> doesn't accept that prop. Declared props: mode, busy, onSignIn."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SignInButton'] > JSXAttribute[name.name='mode'] > Literal[value!=/^(?:google|demo)$/]",
+        "message": "<SignInButton> mode must be one of 'google' | 'demo'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Stat'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|value|tone|key|ref|className|style|children)$/]",
+        "message": "<Stat> doesn't accept that prop. Declared props: label, value, tone."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Stat'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:warn)$/]",
+        "message": "<Stat> tone must be one of 'warn'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StationBoard'] > JSXAttribute > JSXIdentifier[name!=/^(?:devanagari|latin|regional|code|zone|size|key|ref|className|style|children)$/]",
+        "message": "<StationBoard> doesn't accept that prop. Declared props: devanagari, latin, regional, code, zone, size."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StationBoard'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md)$/]",
+        "message": "<StationBoard> size must be one of 'sm' | 'md'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StationHit'] > JSXAttribute > JSXIdentifier[name!=/^(?:code|name|state|key|ref|className|style|children)$/]",
+        "message": "<StationHit> doesn't accept that prop. Declared props: code, name, state."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FieldLabel'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|htmlFor|optional|key|ref|className|style|children)$/]",
+        "message": "<FieldLabel> doesn't accept that prop. Declared props: children, htmlFor, optional."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AuthUser'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|email|avatarUrl|key|ref|className|style|children)$/]",
+        "message": "<AuthUser> doesn't accept that prop. Declared props: name, email, avatarUrl."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='VersionBadge'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|version|key|ref|className|style|children)$/]",
+        "message": "<VersionBadge> doesn't accept that prop. Declared props: name, version."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "BoardBracket": {
+        "replaces": []
+      },
+      "BoardChip": {
+        "replaces": []
+      },
+      "Button": {
+        "replaces": []
+      },
+      "MilestoneStatus": {
+        "replaces": []
+      },
+      "PlatformCanopy": {
+        "replaces": []
+      },
+      "Sheet": {
+        "replaces": []
+      },
+      "SignInButton": {
+        "replaces": []
+      },
+      "Stat": {
+        "replaces": []
+      },
+      "StationBoard": {
+        "replaces": []
+      },
+      "StationHit": {
+        "replaces": []
+      },
+      "FieldLabel": {
+        "replaces": []
+      },
+      "AuthUser": {
+        "replaces": []
+      },
+      "VersionBadge": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--accent",
+      "--accent-dim",
+      "--accent-fill",
+      "--accent-wash",
+      "--board",
+      "--board-edge",
+      "--board-frame",
+      "--board-ink",
+      "--border-enamel",
+      "--border-hair",
+      "--cream",
+      "--dot",
+      "--duration-fast",
+      "--duration-sea",
+      "--ease-sea",
+      "--ease-standard",
+      "--font-body",
+      "--font-display",
+      "--font-mono",
+      "--ground",
+      "--ink",
+      "--ink-faint",
+      "--ink-soft",
+      "--land",
+      "--land-visited",
+      "--leading-2xl",
+      "--leading-3xl",
+      "--leading-base",
+      "--leading-board",
+      "--leading-label",
+      "--leading-lg",
+      "--leading-sm",
+      "--leading-xl",
+      "--leading-xs",
+      "--line",
+      "--line-strong",
+      "--oxide",
+      "--radius-hair",
+      "--radius-round",
+      "--radius-sheet",
+      "--radius-sm",
+      "--route-halo",
+      "--route-idle",
+      "--route-planned",
+      "--route-taken",
+      "--sea",
+      "--sea-ink",
+      "--shadow-board",
+      "--shadow-sheet",
+      "--space-1",
+      "--space-12",
+      "--space-2",
+      "--space-3",
+      "--space-4",
+      "--space-5",
+      "--space-6",
+      "--space-8",
+      "--station-new",
+      "--station-seen",
+      "--steel",
+      "--surface",
+      "--surface-2",
+      "--tap-min",
+      "--text-2xl",
+      "--text-3xl",
+      "--text-base",
+      "--text-board",
+      "--text-label",
+      "--text-lg",
+      "--text-sm",
+      "--text-xl",
+      "--text-xs",
+      "--tracking-board",
+      "--tracking-code",
+      "--tracking-label",
+      "--vermillion",
+      "--weight-black",
+      "--weight-regular",
+      "--weight-semibold",
+      "--you-are-here"
+    ],
+    "tokenKinds": {
+      "--ground": "color",
+      "--surface": "color",
+      "--surface-2": "color",
+      "--line": "color",
+      "--line-strong": "color",
+      "--ink": "color",
+      "--ink-soft": "color",
+      "--ink-faint": "color",
+      "--accent": "color",
+      "--accent-wash": "color",
+      "--accent-dim": "color",
+      "--accent-fill": "color",
+      "--cream": "color",
+      "--vermillion": "color",
+      "--oxide": "color",
+      "--steel": "color",
+      "--land": "color",
+      "--land-visited": "color",
+      "--dot": "color",
+      "--sea": "color",
+      "--sea-ink": "color",
+      "--board": "color",
+      "--board-ink": "color",
+      "--board-edge": "color",
+      "--board-frame": "color",
+      "--route-taken": "color",
+      "--route-halo": "color",
+      "--route-planned": "color",
+      "--route-idle": "color",
+      "--station-seen": "color",
+      "--station-new": "color",
+      "--you-are-here": "color",
+      "--font-display": "font",
+      "--font-body": "font",
+      "--font-mono": "font",
+      "--text-label": "font",
+      "--text-xs": "font",
+      "--text-sm": "font",
+      "--text-base": "font",
+      "--text-lg": "font",
+      "--text-xl": "font",
+      "--text-2xl": "font",
+      "--text-3xl": "font",
+      "--leading-label": "font",
+      "--leading-xs": "font",
+      "--leading-sm": "font",
+      "--leading-base": "font",
+      "--leading-lg": "font",
+      "--leading-xl": "font",
+      "--leading-2xl": "font",
+      "--leading-3xl": "font",
+      "--text-board": "font",
+      "--leading-board": "font",
+      "--tracking-label": "font",
+      "--tracking-code": "font",
+      "--tracking-board": "font",
+      "--weight-regular": "font",
+      "--weight-semibold": "font",
+      "--weight-black": "font",
+      "--space-1": "spacing",
+      "--space-2": "spacing",
+      "--space-3": "spacing",
+      "--space-4": "spacing",
+      "--space-5": "spacing",
+      "--space-6": "spacing",
+      "--space-8": "spacing",
+      "--space-12": "spacing",
+      "--radius-hair": "radius",
+      "--radius-sm": "radius",
+      "--radius-sheet": "radius",
+      "--radius-round": "radius",
+      "--border-hair": "spacing",
+      "--border-enamel": "spacing",
+      "--shadow-board": "shadow",
+      "--shadow-sheet": "shadow",
+      "--duration-fast": "other",
+      "--duration-sea": "other",
+      "--ease-standard": "other",
+      "--ease-sea": "other",
+      "--tap-min": "spacing"
+    },
+    "fontFamilies": [
+      "Archivo",
+      "Archivo Fallback",
+      "IBM Plex Mono",
+      "IBM Plex Sans Devanagari",
+      "Noto Sans Bengali"
+    ]
+  }
+}

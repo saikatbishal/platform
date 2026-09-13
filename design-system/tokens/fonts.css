@@ -1,0 +1,24 @@
+/* ============================================================
+   Typefaces — four families, three roles.
+
+   Archivo                  Latin display + interface (squarish grotesque)
+   IBM Plex Mono            figures, station codes, tabular numerals
+   IBM Plex Sans Devanagari the station board's Hindi line
+   Noto Sans Bengali        the station board's Bengali line
+
+   The app self-hosts these via @fontsource (npm). Those binaries are not in
+   the repository, so this design system loads the same four families from
+   Google Fonts instead — same families, same weights, different delivery.
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Devanagari:wght@400&family=Noto+Sans+Bengali:wght@400&display=swap');
+
+/* Metric-matched local fallback, so nothing reflows when Archivo arrives.
+   Numbers measured against the real files, not generated. */
+@font-face {
+  font-family: 'Archivo Fallback';
+  src: local('Arial'), local('Helvetica Neue'), local('Helvetica');
+  size-adjust: 99.5%;
+  ascent-override: 88.44%;
+  descent-override: 21.1%;
+  line-gap-override: 0%;
+}

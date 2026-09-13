@@ -39,6 +39,20 @@ every other map app.
 **Never put a secret in a `VITE_` variable.** Those are compiled into the browser
 bundle. Model API keys belong in Supabase Edge Function secrets.
 
+**Never design a feature without reading `design-system/readme.md` first.** It
+is the brand's source of truth — palette and the four traps it sets, the type
+scale and why it escapes its own ratio below 15px, spacing, radii, tap targets,
+and the voice rules for every string a user reads. `design-system/guidelines/`
+carries a page per topic and, sometimes, a build brief for a specific screen.
+
+**But do not import from `design-system/components/`.** Those are specimens: a
+`.d.ts` contract and a `.prompt.md` example per component, so you can see the
+intended API and copy the markup. Production code in `src/` keeps writing its
+styling at the call site, from `src/styles/` tokens, the way `AddJourneyForm`
+and `Milestones` do. No component library, no icon library — that is the
+project's standing decision and the design system agrees with it in writing.
+`ui_kits/` and `templates/` are for prototypes and mocks, never for `src/`.
+
 **Never hard-code a colour.** Use the tokens in `src/styles/tokens.css`, or the
 Tailwind classes bridged from them (`bg-ground`, `text-cream`,
 `stroke-route-taken`). A literal hex outside `tokens.css` is a bug, because it

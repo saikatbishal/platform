@@ -11,6 +11,10 @@ dist-ssr/
 .vite/
 *.local
 *.md
+# ...except the design system, whose readme, SKILL.md and guidelines ARE the
+# system. `*.md` above would otherwise ignore exactly the files that matter.
+!design-system/**/*.md
+!design-system/*.md
 # generated assets (rebuild with: npm run assets)
 public/data/stations.json
 public/maps/
