@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { MAP_WIDTH, MAP_HEIGHT } from '@/lib/projection.ts'
 import { LOD_TIERS, tierFor, type LodTier } from './lod.ts'
 import { usePanZoom, type View } from './usePanZoom.ts'
@@ -23,6 +23,19 @@ interface Props {
   loadDistricts?: () => void
   /** Called whenever the derived totals change, so the page can show them. */
   onStats?: (stats: { km: number; longestKm: number; stations: number; states: number; uncounted: number }) => void
+  /** A route was asked to open its full detail — a click on a mouse-capable
+      device, or a second tap on an already-open tooltip on a touch one. The
+      page owns what "full detail" means (the Journeys sheet, filtered to
+      this route); this file only knows which journey triggered it. */
+  onOpenJourneyModal?: (journeyId: string) => void
+  ref?: React.Ref<IndiaMapHandle>
+}
+
+export interface IndiaMapHandle {
+  /** Pans/zooms to frame one journey's route, if it's currently drawable.
+      A journey with no route on the graph has nothing to frame — silently
+      does nothing rather than snapping to a meaningless point. */
+  flyToJourney: (journeyId: string) => void
 }
 
 /**
@@ -35,7 +48,25 @@ interface Props {
  * Putting the canvas underneath the land — the obvious "backdrop" instinct —
  * hides the station dots everywhere except over the sea.
  */
-export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Props) {
+export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpenJourneyModal, ref }: Props) {
+  // Static for the life of the tab — device capability doesn't change
+  // mid-session, so this is read once rather than tracked as state. Decides
+  // whether a click on a route jumps straight to the full-detail modal
+  // (mouse: the tooltip is already a quick glance, no reason to make you
+  // click twice) or just shows the tooltip, which itself becomes the tap
+  // target for the modal on a device with no hover at all.
+  const canHoverRef = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches,
+  )
+  /** Where a press started, if it started on a route halo or the tooltip —
+      resolved on release by the stage's own `onPointerUp`, since pointer
+      capture (see the halo's `onPointerDown` comment) means that is the only
+      place a release is guaranteed to actually arrive. */
+  const pressStart = useRef<
+    { kind: 'route'; journeyId: string; x: number; y: number }
+    | { kind: 'tooltip'; x: number; y: number }
+    | null
+  >(null)
   /* Kept here rather than lifted to App like `data` was: that lift existed to
      stop a second useMapData refetching 8,696 stations, and nothing about
      shard fetches has that problem — a second consumer hits the browser cache.
@@ -288,7 +319,24 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
     setTier((prev) => (prev === next ? prev : next))
   }, [])
 
-  const { zoomBy, reset, invalidate } = usePanZoom(stage, { onFrame, onZoomSettled })
+  const { zoomBy, reset, invalidate, flyToBounds } = usePanZoom(stage, { onFrame, onZoomSettled })
+
+  useImperativeHandle(ref, () => ({
+    flyToJourney: (journeyId: string) => {
+      if (!data) return
+      const route = routes.find((r) => r.id === journeyId)
+      if (!route) return
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      for (const code of route.stops) {
+        const s = data.byCode.get(code)
+        if (!s) continue
+        minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x)
+        minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y)
+      }
+      if (minX === Infinity) return
+      flyToBounds(minX, minY, maxX, maxY)
+    },
+  }), [data, routes, flyToBounds])
 
   // Paint the first real frame once the data lands. `stage` is mounted from
   // the very first render, so usePanZoom wires up and fits immediately — but
@@ -335,7 +383,42 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
   return (
     <div
       ref={stage}
-      onClick={() => { setActiveJourneyId(null) }}
+      /* Every release lands here, not on whatever it started over —
+         `usePanZoom`'s native `onDown` calls `el.setPointerCapture()` for
+         every press in the stage, and a captured pointer's later events go
+         straight to the capturing element regardless of what's underneath
+         it. So a route or the tooltip only ever gets to record where a
+         press *started* (see their own `onPointerDown`); this is where the
+         release is actually resolved against that record.
+         A tap is "started on something, didn't travel far" — six screen
+         pixels, not zero, because a finger or a mouse held for a tap always
+         drifts a little. Anything that travelled further was a drag or a
+         pinch, and gets treated as one: dismiss whatever tooltip was open,
+         same as tapping empty water. */
+      onPointerUp={(e) => {
+        const press = pressStart.current
+        pressStart.current = null
+        if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) <= 6) {
+          if (press.kind === 'tooltip') {
+            if (activeJourneyId) {
+              setActiveJourneyId(null)
+              onOpenJourneyModal?.(activeJourneyId)
+            }
+            return
+          }
+          if (canHoverRef.current) {
+            // Already hovering, already saw the quick glance — a click here
+            // means "tell me more," not "show me what I'm already looking at."
+            setActiveJourneyId(null)
+            onOpenJourneyModal?.(press.journeyId)
+          } else {
+            setActiveJourneyId(press.journeyId)
+            setTooltipPos({ x: e.clientX, y: e.clientY })
+          }
+          return
+        }
+        setActiveJourneyId(null)
+      }}
       className={`absolute inset-0 touch-none bg-sea [cursor:grab] active:[cursor:grabbing]${seaStill ? ' sea-paused' : ''}`}
     >
       {error ? (
@@ -557,10 +640,22 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
                   if (e.pointerType !== 'mouse') return
                   setActiveJourneyId(null)
                 }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setActiveJourneyId(r.id)
-                  setTooltipPos({ x: e.clientX, y: e.clientY })
+                /* Not `onClick`, and not `onPointerUp` either, both tried
+                   first: `usePanZoom`'s own native listener calls
+                   `el.setPointerCapture()` on every `pointerdown` anywhere
+                   in the stage (it has to, for dragging to survive a fast
+                   flick past this element's edge), and pointer capture
+                   redirects every later event for that pointer — move, up —
+                   straight to the capturing element. Once that fires, this
+                   path never sees its own release; it isn't there to be
+                   hit-tested. `onClick` failed the same way one layer up
+                   (the browser's click synthesis looks at where the capture
+                   sent mouseup, not where the press started). So the only
+                   thing recorded here is the down — which capture hasn't
+                   redirected yet — for the stage's own pointerup to resolve
+                   against; see `pressStart` there. */
+                onPointerDown={(e) => {
+                  pressStart.current = { kind: 'route', journeyId: r.id, x: e.clientX, y: e.clientY }
                 }}
               />
             ))}
@@ -652,6 +747,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats }: Prop
             toName={data.byCode.get(journey.toCode)?.name ?? journey.toCode}
             x={tooltipPos.x}
             y={tooltipPos.y}
+            onPressStart={(px, py) => { pressStart.current = { kind: 'tooltip', x: px, y: py } }}
           />
         )
       })()}

@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
-import { IndiaMap } from '@/features/map/IndiaMap.tsx'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { IndiaMap, type IndiaMapHandle } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
 import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
 import { useJourneys } from '@/features/journeys/useJourneys.ts'
@@ -9,6 +9,7 @@ import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
 import { StationBoard, BoardBracket } from '@/components/StationBoard.tsx'
 import { PlatformCanopy } from '@/components/PlatformCanopy.tsx'
+import { JourneysSheet } from '@/components/JourneysSheet.tsx'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
 import { formatKm } from '@/lib/distance.ts'
 import { evaluateMilestones } from '@/features/stats/milestones.ts'
@@ -66,6 +67,25 @@ export default function App() {
   const [entryOpen, setEntryOpen] = useState(false)
   const [milestonesOpen, setMilestonesOpen] = useState(false)
   const [passportOpen, setPassportOpen] = useState(false)
+  /**
+   * The route whose tooltip was opened to full detail — there is no
+   * standalone "browse everything" entry point, only a route's own tooltip.
+   * Captured as the station pair, not the clicked journey's id: removing
+   * that specific journey inside the sheet must not break the lookup for
+   * the others still on the same route.
+   */
+  const [routeTarget, setRouteTarget] = useState<{ initialJourneyId: string; fromCode: string; toCode: string } | null>(null)
+  const mapRef = useRef<IndiaMapHandle>(null)
+  /** Every journey between the same two stations, either direction — a
+      round trip traces the same line on the map, so it reads as one route,
+      not two. */
+  const routeJourneys = useMemo(() => {
+    if (!routeTarget) return []
+    return journeys.filter((j) =>
+      (j.fromCode === routeTarget.fromCode && j.toCode === routeTarget.toCode) ||
+      (j.fromCode === routeTarget.toCode && j.toCode === routeTarget.fromCode),
+    )
+  }, [routeTarget, journeys])
   // Card view at sm and up always shows all four — this only governs the
   // phone list, and starts collapsed so the totals don't compete with the
   // sign-in card and the log-journey/milestones buttons for the same strip
@@ -79,11 +99,17 @@ export default function App() {
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-ground">
       <IndiaMap
+        ref={mapRef}
         journeys={journeys}
         data={mapData}
         error={mapError}
         loadDistricts={loadDistricts}
         onStats={onStats}
+        onOpenJourneyModal={(journeyId) => {
+          const clicked = journeys.find((j) => j.id === journeyId)
+          if (!clicked) return
+          setRouteTarget({ initialJourneyId: journeyId, fromCode: clicked.fromCode, toCode: clicked.toCode })
+        }}
       />
 
       {/* Roadmap Phase 1, item 8. This was the loudest thing on screen and it
@@ -325,6 +351,21 @@ export default function App() {
             />
           </div>
         </div>
+      )}
+
+      {routeTarget && routeJourneys.length > 0 && (
+        <JourneysSheet
+          journeys={routeJourneys}
+          initialJourneyId={routeTarget.initialJourneyId}
+          data={mapData}
+          onClose={() => { setRouteTarget(null) }}
+          onShowOnMap={(journeyId) => {
+            setRouteTarget(null)
+            mapRef.current?.flyToJourney(journeyId)
+          }}
+          onRemove={(journeyId) => { store.remove(journeyId) }}
+          readOnly={showingSamples}
+        />
       )}
 
       {entryOpen && (
