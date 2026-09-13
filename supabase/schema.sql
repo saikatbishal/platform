@@ -22,6 +22,13 @@ create table if not exists journeys (
   -- the UI labels it "as the crow flies" rather than hiding the approximation.
   distance_km   numeric(8,2),
 
+  -- Departure and arrival times (HH:MM format), optional and independent.
+  -- Real arrival time, not from schedule — captures delays.
+  departure_time text,
+  arrival_time   text,
+  -- 0 = arrived same day, 1 = next day, etc. Meaningless without arrival_time.
+  arrival_day_offset integer default 0,
+
   created_at    timestamptz not null default now(),
 
   constraint different_stations check (from_code <> to_code),
