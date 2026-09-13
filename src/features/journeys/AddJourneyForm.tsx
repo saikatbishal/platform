@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useStationSearch } from './useStationSearch.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
+import { useTrainTimes } from './useTrainTimes.ts'
 import type { StationHit } from './searchStations.ts'
 import type { JourneyDraft, Station } from '@/types/index.ts'
 
@@ -137,6 +138,7 @@ function StationField({
 export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
   const { search } = useStationSearch(stations)
   const { request, between, loading } = useTrainsBetween()
+  const { request: requestTimes, legFor } = useTrainTimes()
 
   const [from, setFrom] = useState<StationHit | null>(null)
   const [to, setTo] = useState<StationHit | null>(null)
@@ -170,6 +172,23 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
 
   const CUSTOM = '#custom'
   const trainNumber = train === CUSTOM ? customTrain.trim() : train
+
+  // Only a train the timetable knows has times to offer. A hand-entered one
+  // never will, which is the point of being able to enter it.
+  useEffect(() => {
+    if (train && train !== CUSTOM) requestTimes(train)
+  }, [train, requestTimes])
+
+  const scheduled = useMemo(
+    () => (train && train !== CUSTOM && from && to ? legFor(train, from.code, to.code) : null),
+    [train, from, to, legFor],
+  )
+  /** True once the offered times are already in the fields — nothing left to do. */
+  const scheduledApplied =
+    scheduled !== null &&
+    departureTime === (scheduled.departure ?? '') &&
+    arrivalTime === (scheduled.arrival ?? '') &&
+    arrivalDayOffset === scheduled.dayOffset
 
   const ready = from !== null && to !== null && from.code !== to.code && travelledOn !== ''
 
@@ -228,6 +247,42 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
           </select>
         )}
       </label>
+
+      {/*
+        An offer, not a default.
+        `Journey.departureTime` is a record of the journey someone took, and
+        the timetable cannot know the train left forty minutes late. Filling
+        these silently would store a scheduled time as though it were
+        observed — and the "over 24h" milestone reads these fields, so a
+        quietly-wrong time becomes a quietly-wrong milestone. Pressing the
+        button is the user accepting a stated approximation; the word
+        "scheduled" is in front of them when they do.
+      */}
+      {scheduled && !scheduledApplied && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line px-3 py-2.5">
+          <p className="text-sm text-ink-soft">
+            The {train} is scheduled{' '}
+            <span className="tabular text-ink">
+              {scheduled.departure ?? '--:--'} → {scheduled.arrival ?? '--:--'}
+            </span>
+            {scheduled.dayOffset > 0 && (
+              <span className="tabular text-ink-faint"> (+{scheduled.dayOffset}d)</span>
+            )}.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setDepartureTime(scheduled.departure ?? '')
+              setArrivalTime(scheduled.arrival ?? '')
+              setArrivalDayOffset(scheduled.dayOffset)
+              setShowTimes(true)
+            }}
+            className="rounded-sm border border-line px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+          >
+            Use these
+          </button>
+        </div>
+      )}
 
       {train === CUSTOM && (
         <label className="block">
