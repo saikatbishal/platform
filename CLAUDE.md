@@ -160,3 +160,8 @@ screens around it, the two Figma screens in week 1 still need doing.
 
 `src/features/journeys/sampleJourneys.ts` is seed data until Supabase lands in
 week 3. Real station codes on purpose — plausible fake data hides real problems.
+
+
+## VERY IMPORTANT
+
+- Never commit and push anything without the user's approval
