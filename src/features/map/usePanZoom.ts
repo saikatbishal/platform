@@ -52,6 +52,7 @@ export function usePanZoom(
   const history = useRef<Array<{ dx: number; dy: number; t: number }>>([])
   const velocity = useRef({ x: 0, y: 0 })
   const lastTier = useRef(-1)
+  const flyAnim = useRef<{ from: View; to: View; start: number; duration: number } | null>(null)
 
   const clamp = useCallback(() => {
     const el = stage.current
@@ -93,7 +94,20 @@ export function usePanZoom(
 
     const loop = () => {
       const v = velocity.current
-      if (!dragging.current && (Math.abs(v.x) > 0.04 || Math.abs(v.y) > 0.04)) {
+      if (flyAnim.current) {
+        const { from, to, start, duration } = flyAnim.current
+        const t = Math.min(1, (performance.now() - start) / duration)
+        // Cubic ease-out: fast start, settles gently, never bounces — the
+        // same texture as everything else in this app moves with.
+        const eased = 1 - (1 - t) ** 3
+        view.current = {
+          x: from.x + (to.x - from.x) * eased,
+          y: from.y + (to.y - from.y) * eased,
+          k: from.k + (to.k - from.k) * eased,
+        }
+        if (t >= 1) flyAnim.current = null
+        dirty.current = true
+      } else if (!dragging.current && (Math.abs(v.x) > 0.04 || Math.abs(v.y) > 0.04)) {
         view.current.x += v.x
         view.current.y += v.y
         const bx = view.current.x, by = view.current.y
@@ -106,7 +120,10 @@ export function usePanZoom(
         dirty.current = true
       }
       if (dirty.current) {
-        clamp()
+        // Clamp fights a flight in progress — its margin math answers "is the
+        // country still on screen", not "is this frame partway to a chosen
+        // target" — so it sits out until the animation itself finishes.
+        if (!flyAnim.current) clamp()
         onFrameRef.current(view.current, fit.current)
         const rel = view.current.k / fit.current
         const bucket = Math.round(rel * 100)
@@ -123,6 +140,9 @@ export function usePanZoom(
     const rect = () => el.getBoundingClientRect()
 
     const onDown = (e: PointerEvent) => {
+      // A touch mid-flight means "I'll take it from here" — let go instantly
+      // rather than fighting the user's own drag for the animation's remainder.
+      flyAnim.current = null
       el.setPointerCapture(e.pointerId)
       pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
       velocity.current = { x: 0, y: 0 }
@@ -246,5 +266,37 @@ export function usePanZoom(
    */
   const invalidate = useCallback(() => { dirty.current = true }, [])
 
-  return { zoomBy, reset: fitToViewport, invalidate, view }
+  /**
+   * Animate to the view that frames a map-space bounding box — a single
+   * journey's stops, say — instead of the whole country. `margin` leaves
+   * 30% of the fitted dimension as breathing room so the route isn't flush
+   * against the edges; the same clamp `zoomAt` uses keeps the result from
+   * either overshooting past a sane zoom or under-zooming past the initial
+   * country fit. `prefers-reduced-motion` skips the animation and lands on
+   * the target directly — the fly is a nice-to-have, arriving there isn't.
+   */
+  const flyToBounds = useCallback((minX: number, minY: number, maxX: number, maxY: number) => {
+    const el = stage.current
+    if (!el) return
+    const vw = el.clientWidth, vh = el.clientHeight
+    const margin = 1.3
+    const boxW = Math.max(maxX - minX, 1), boxH = Math.max(maxY - minY, 1)
+    const min = fit.current * ZOOM_MIN, max = fit.current * ZOOM_MAX
+    const k = Math.min(max, Math.max(min, Math.min(vw / (boxW * margin), vh / (boxH * margin))))
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+    const to: View = { k, x: vw / 2 - cx * k, y: vh / 2 - cy * k }
+
+    dragging.current = false
+    velocity.current = { x: 0, y: 0 }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      view.current = to
+      dirty.current = true
+      return
+    }
+    flyAnim.current = { from: { ...view.current }, to, start: performance.now(), duration: 700 }
+    dirty.current = true
+  }, [stage])
+
+  return { zoomBy, reset: fitToViewport, invalidate, flyToBounds, view }
 }
