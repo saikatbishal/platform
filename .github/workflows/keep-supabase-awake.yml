@@ -1,0 +1,75 @@
+# Keeps the Supabase project from being paused for inactivity.
+#
+# A free project pauses after about seven days of low activity, and a paused
+# project is not a degraded one: Postgres, Auth and Storage all stop answering.
+# The data is safe — resuming restores it within a one-year window — but a 
+# person who opens the link during a quiet fortnight sees a broken app,
+# not a sleeping one. Nothing about this workflow protects data; it protects
+# availability. Backups are a separate problem the free tier does not solve.
+#
+# ── Setup ─────────────────────────────────────────────────────────────────
+# Settings → Secrets and variables → Actions → New repository secret:
+#   SUPABASE_URL              https://<ref>.supabase.co
+#   SUPABASE_PUBLISHABLE_KEY  the sb_publishable_... key
+#
+# The publishable key is compiled into the browser bundle and is not a secret
+# in any real sense — row-level security is what protects the data. It lives
+# in Actions secrets so the URL and key are not sitting in a public repo
+# waiting to be scraped into somebody's request log.
+
+name: Keep Supabase awake
+
+on:
+  schedule:
+    # 06:12 UTC on Monday, Wednesday, Friday. Not on the hour: GitHub queues
+    # every cron in the world at :00 and delays the overflow, sometimes by
+    # tens of minutes. An odd minute gets picked up closer to on time.
+    - cron: '12 6 * * 1,3,5'
+  # So it can be run by hand from the Actions tab — useful right after setup,
+  # and useful when you want to know whether the app is up without opening it.
+  workflow_dispatch:
+
+# Two concurrent pings would be pointless, and a queued one is already stale.
+concurrency:
+  group: keep-awake
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Query the database
+        env:
+          URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${URL:-}" ] || [ -z "${KEY:-}" ]; then
+            echo "::error::SUPABASE_URL or SUPABASE_PUBLISHABLE_KEY is not set. See the header of this file."
+            exit 1
+          fi
+
+          # A real SELECT against a real table, because that is what counts as
+          # activity — an auth health check may never reach Postgres. Row-level
+          # security means this returns [] for an unauthenticated caller: the
+          # query runs, no data comes back, and nothing is exposed by it.
+          code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 30 \
+            -H "apikey: ${KEY}" \
+            -H "Authorization: Bearer ${KEY}" \
+            "${URL}/rest/v1/journeys?select=id&limit=1")
+
+          echo "HTTP ${code}"
+          echo "body: $(head -c 200 /tmp/body)"
+
+          # 200 is the healthy answer. 401/403 still prove Postgres answered —
+          # they are RLS or key problems, not a paused project — so they are
+          # loud failures rather than silent passes: a wrong key here means the
+          # ping has been doing nothing for weeks.
+          if [ "$code" != "200" ]; then
+            echo "::error::Expected 200, got ${code}. A paused project usually returns 503 or times out."
+            exit 1
+          fi
+
+          echo "Project is awake."
