@@ -252,6 +252,56 @@ export function usePanZoom(
     zoomAt(el.clientWidth / 2, el.clientHeight / 2, factor)
   }, [stage, zoomAt])
 
+  const animatedZoomBy = useCallback((factor: number) => {
+    const el = stage.current
+    if (!el) return
+    const min = fit.current * ZOOM_MIN, max = fit.current * ZOOM_MAX
+    const nextK = Math.min(max, Math.max(min, view.current.k * factor))
+    const vw = el.clientWidth, vh = el.clientHeight
+    const cx = vw / 2, cy = vh / 2
+    const f = nextK / view.current.k
+    const to: View = {
+      k: nextK,
+      x: cx - (cx - view.current.x) * f,
+      y: cy - (cy - view.current.y) * f,
+    }
+
+    dragging.current = false
+    velocity.current = { x: 0, y: 0 }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      view.current = to
+      dirty.current = true
+      return
+    }
+    flyAnim.current = { from: { ...view.current }, to, start: performance.now(), duration: 400 }
+    dirty.current = true
+  }, [stage])
+
+  const animatedFitToViewport = useCallback(() => {
+    const el = stage.current
+    if (!el) return
+    const vw = el.clientWidth, vh = el.clientHeight
+    const nextK = Math.min(vw / MAP_WIDTH, vh / MAP_HEIGHT)
+    const to: View = {
+      k: nextK,
+      x: (vw - MAP_WIDTH * nextK) / 2,
+      y: (vh - MAP_HEIGHT * nextK) / 2,
+    }
+
+    dragging.current = false
+    velocity.current = { x: 0, y: 0 }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      view.current = to
+      fit.current = nextK
+      dirty.current = true
+      return
+    }
+    flyAnim.current = { from: { ...view.current }, to, start: performance.now(), duration: 600 }
+    dirty.current = true
+  }, [stage])
+
   /**
    * Repaint on the next frame without moving the view.
    *
@@ -298,5 +348,5 @@ export function usePanZoom(
     dirty.current = true
   }, [stage])
 
-  return { zoomBy, reset: fitToViewport, invalidate, flyToBounds, view }
+  return { zoomBy, animatedZoomBy, reset: fitToViewport, animatedReset: animatedFitToViewport, invalidate, flyToBounds, view }
 }
