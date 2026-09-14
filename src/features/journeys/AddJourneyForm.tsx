@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { useStationSearch } from './useStationSearch.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
+import { useTrainTimes } from './useTrainTimes.ts'
 import type { StationHit } from './searchStations.ts'
 import type { JourneyDraft, Station } from '@/types/index.ts'
 
@@ -20,13 +21,20 @@ interface Props {
   onClose: () => void
 }
 
-/** Today in the user's own timezone. `toISOString()` would use UTC and can
-    hand someone in India tomorrow's date after 05:30. */
-function today(): string {
+/**
+ * `back` days before today, in the user's own timezone.
+ *
+ * Not `toISOString()`: that is UTC, and after 05:30 it hands someone in India
+ * tomorrow's date — which the schema then rejects as being in the future.
+ */
+function daysAgo(back: number): string {
   const d = new Date()
+  d.setDate(d.getDate() - back)
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
+
+const today = () => daysAgo(0)
 
 function StationField({
   label, value, onPick, search, exclude,
@@ -130,10 +138,19 @@ function StationField({
 export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
   const { search } = useStationSearch(stations)
   const { request, between, loading } = useTrainsBetween()
+  const { request: requestTimes, legFor } = useTrainTimes()
 
   const [from, setFrom] = useState<StationHit | null>(null)
   const [to, setTo] = useState<StationHit | null>(null)
   const [train, setTrain] = useState<string>('')
+  /* A train the timetable has never heard of.
+     The dataset is several years old — `schema.sql` keeps `train_number` free
+     text for exactly this reason — so a picker limited to what it knows will
+     refuse real journeys on newer trains. Entered by hand, stored like any
+     other number, and deliberately given no stop list: routeForJourney falls
+     back to the shortest path, which is what it already does for the 450
+     stations with no timetable at all. */
+  const [customTrain, setCustomTrain] = useState('')
   const [travelledOn, setTravelledOn] = useState(today())
   const [note, setNote] = useState('')
   const [showTimes, setShowTimes] = useState(false)
@@ -151,7 +168,27 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
     [from, to, between],
   )
   // A train picked for one pair is meaningless for another.
-  useEffect(() => { setTrain('') }, [from, to])
+  useEffect(() => { setTrain(''); setCustomTrain('') }, [from, to])
+
+  const CUSTOM = '#custom'
+  const trainNumber = train === CUSTOM ? customTrain.trim() : train
+
+  // Only a train the timetable knows has times to offer. A hand-entered one
+  // never will, which is the point of being able to enter it.
+  useEffect(() => {
+    if (train && train !== CUSTOM) requestTimes(train)
+  }, [train, requestTimes])
+
+  const scheduled = useMemo(
+    () => (train && train !== CUSTOM && from && to ? legFor(train, from.code, to.code) : null),
+    [train, from, to, legFor],
+  )
+  /** True once the offered times are already in the fields — nothing left to do. */
+  const scheduledApplied =
+    scheduled !== null &&
+    departureTime === (scheduled.departure ?? '') &&
+    arrivalTime === (scheduled.arrival ?? '') &&
+    arrivalDayOffset === scheduled.dayOffset
 
   const ready = from !== null && to !== null && from.code !== to.code && travelledOn !== ''
 
@@ -164,7 +201,7 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
           fromCode: from.code,
           toCode: to.code,
           travelledOn,
-          trainNumber: train || null,
+          trainNumber: trainNumber || null,
           note: note.trim() || null,
           departureTime: departureTime || null,
           arrivalTime: arrivalTime || null,
@@ -206,9 +243,71 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
                 {t.number} · {t.name} — {t.stops} stops
               </option>
             ))}
+            <option value={CUSTOM}>A train that isn&rsquo;t listed…</option>
           </select>
         )}
       </label>
+
+      {/*
+        An offer, not a default.
+        `Journey.departureTime` is a record of the journey someone took, and
+        the timetable cannot know the train left forty minutes late. Filling
+        these silently would store a scheduled time as though it were
+        observed — and the "over 24h" milestone reads these fields, so a
+        quietly-wrong time becomes a quietly-wrong milestone. Pressing the
+        button is the user accepting a stated approximation; the word
+        "scheduled" is in front of them when they do.
+      */}
+      {scheduled && !scheduledApplied && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-line px-3 py-2.5">
+          <p className="text-sm text-ink-soft">
+            The {train} is scheduled{' '}
+            <span className="tabular text-ink">
+              {scheduled.departure ?? '--:--'} → {scheduled.arrival ?? '--:--'}
+            </span>
+            {scheduled.dayOffset > 0 && (
+              <span className="tabular text-ink-faint"> (+{scheduled.dayOffset}d)</span>
+            )}.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setDepartureTime(scheduled.departure ?? '')
+              setArrivalTime(scheduled.arrival ?? '')
+              setArrivalDayOffset(scheduled.dayOffset)
+              setShowTimes(true)
+            }}
+            className="rounded-sm border border-line px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+          >
+            Use these
+          </button>
+        </div>
+      )}
+
+      {train === CUSTOM && (
+        <label className="block">
+          <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
+            Train number
+          </span>
+          <input
+            value={customTrain}
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="12113"
+            onChange={(e) => { setCustomTrain(e.target.value) }}
+            className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+          />
+          {/* A FieldNote, not an error: it says what the data can and cannot
+              do. The number is kept on the journey; the route is still drawn
+              by inference, because we have no stop list for a train the
+              timetable predates. */}
+          <p className="mt-1.5 text-sm text-ink-faint">
+            The timetable is a few years old, so newer trains are missing from it.
+            The number is kept with the journey; the route is drawn as the
+            shortest path.
+          </p>
+        </label>
+      )}
 
       <label className="block">
         <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
@@ -218,11 +317,38 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
           type="date"
           value={travelledOn}
           /* The schema refuses a future date (not_in_the_future), so the
-             input refuses it too rather than letting the insert fail later. */
+             input refuses it too rather than letting the insert fail later.
+             There is deliberately no `min`: this is a record of a rail life,
+             and the first thing anyone does with one is backfill. A floor of
+             a few months would reject the app's own sample journeys, the
+             oldest of which is from November 2025. */
           max={today()}
           onChange={(e) => { setTravelledOn(e.target.value) }}
           className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
         />
+        {/* Today is the default; yesterday is one tap, because an overnight
+            train arrives the morning after the day you think of it as. */}
+        <div className="mt-2 flex gap-2">
+          {([['Today', 0], ['Yesterday', 1]] as const).map(([label, back]) => {
+            const value = daysAgo(back)
+            const active = travelledOn === value
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => { setTravelledOn(value) }}
+                aria-pressed={active}
+                className={`rounded-sm border px-3 py-2 text-label font-semibold tracking-label uppercase ${
+                  active
+                    ? 'border-accent text-accent'
+                    : 'border-line text-ink-faint hover:bg-surface-2 hover:text-accent'
+                }`}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
       </label>
 
       {showTimes ? (

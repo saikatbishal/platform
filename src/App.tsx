@@ -299,31 +299,42 @@ export default function App() {
           )}
         </section>
 
-        <button
-          type="button"
-          onClick={() => { setEntryOpen(true) }}
-          className="pointer-events-auto rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
-        >
-          + Log a journey
-        </button>
+        {/* Signed out, the map is the whole pitch and the totals below it are
+            somebody else's sample journeys. All three of these act on a rail
+            life the visitor does not have yet: logging writes to a journey
+            store keyed on a user id that is null, milestones would count
+            progress against the samples, and the passport card would hand
+            them a shareable image of travel they have not done. The board
+            already carries the one action available to them. */}
+        {signedIn && (
+          <>
+            <button
+              type="button"
+              onClick={() => { setEntryOpen(true) }}
+              className="pointer-events-auto rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
+            >
+              + Log a journey
+            </button>
 
-        <div className="pointer-events-auto flex gap-2">
-          <button
-            type="button"
-            onClick={() => { setMilestonesOpen(true) }}
-            className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
-          >
-            Milestones
-          </button>
-          <button
-            type="button"
-            onClick={() => { setPassportOpen(true) }}
-            disabled={!mapData}
-            className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
-          >
-            Passport card
-          </button>
-        </div>
+            <div className="pointer-events-auto flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setMilestonesOpen(true) }}
+                className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+              >
+                Milestones
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPassportOpen(true) }}
+                disabled={!mapData}
+                className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
+              >
+                Passport card
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {milestonesOpen && (
