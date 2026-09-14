@@ -254,8 +254,7 @@ export function usePanZoom(
 
   const animatedZoomBy = useCallback((factor: number) => {
     const el = stage.current
-    if (!el) { console.log('[anim] no element'); return }
-    const t1 = performance.now()
+    if (!el) return
     const min = fit.current * ZOOM_MIN, max = fit.current * ZOOM_MAX
     const nextK = Math.min(max, Math.max(min, view.current.k * factor))
     const vw = el.clientWidth, vh = el.clientHeight
@@ -275,7 +274,6 @@ export function usePanZoom(
     }
     flyAnim.current = { from: { ...view.current }, to, start: performance.now(), duration: 400 }
     dirty.current = true
-    console.log(`[anim] setup ${(performance.now() - t1).toFixed(2)}ms`)
   }, [stage])
 
   const animatedReset = useCallback(() => {

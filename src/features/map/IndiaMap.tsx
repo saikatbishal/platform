@@ -89,7 +89,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
 
   // WCAG 2.2.2: the wave glyphs loop indefinitely, so the ≈ button can stop
   // them. prefers-reduced-motion is handled globally in index.css.
-  const [seaStill, setSeaStill] = useState(false)
+  const [seaStill] = useState(false)
 
   // Expand every journey into the stations its train actually calls at. A
   // two-point line does not follow the railway: on the Vijayawada–Chennai leg
@@ -319,7 +319,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
     setTier((prev) => (prev === next ? prev : next))
   }, [])
 
-  const { zoomBy, animatedZoomBy, reset, animatedReset, invalidate, flyToBounds } = usePanZoom(stage, { onFrame, onZoomSettled })
+  const { animatedZoomBy, animatedReset, invalidate, flyToBounds } = usePanZoom(stage, { onFrame, onZoomSettled })
 
   useImperativeHandle(ref, () => ({
     flyToJourney: (journeyId: string) => {
