@@ -319,7 +319,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
     setTier((prev) => (prev === next ? prev : next))
   }, [])
 
-  const { zoomBy, reset, invalidate, flyToBounds } = usePanZoom(stage, { onFrame, onZoomSettled })
+  const { zoomBy, animatedZoomBy, reset, animatedReset, invalidate, flyToBounds } = usePanZoom(stage, { onFrame, onZoomSettled })
 
   useImperativeHandle(ref, () => ({
     flyToJourney: (journeyId: string) => {
@@ -724,15 +724,12 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
       <canvas ref={labelCanvas} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
 
       <div className="pointer-events-auto absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-sm border border-line bg-surface">
-        <button type="button" onClick={() => zoomBy(1.6)} aria-label="Zoom in"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const t0 = performance.now(); animatedZoomBy(1.6); console.log(`[zoom+] ${(performance.now() - t0).toFixed(1)}ms`) }} aria-label="Zoom in"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">+</button>
-        <button type="button" onClick={() => zoomBy(1 / 1.6)} aria-label="Zoom out"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const t0 = performance.now(); animatedZoomBy(1 / 1.6); console.log(`[zoom-] ${(performance.now() - t0).toFixed(1)}ms`) }} aria-label="Zoom out"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">−</button>
-        <button type="button" onClick={reset} aria-label="Fit the whole country"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const t0 = performance.now(); animatedReset(); console.log(`[fit] ${(performance.now() - t0).toFixed(1)}ms`) }} aria-label="Fit the whole country"
           className="h-10 w-10 border-b border-line text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent">Fit</button>
-        <button type="button" onClick={() => setSeaStill((s) => !s)} aria-pressed={seaStill}
-          aria-label={seaStill ? 'Let the sea move again' : 'Hold the sea still'}
-          className={`h-10 w-10 text-ink-soft hover:bg-surface-2 hover:text-accent${seaStill ? ' opacity-45' : ''}`}>≈</button>
       </div>
 
       {activeJourneyId && tooltipPos && (() => {
