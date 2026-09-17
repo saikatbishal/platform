@@ -170,7 +170,7 @@ function App() {
       <IndiaMap journeys={journeys} stations={STATIONS} onPickStation={setPicked} />
 
       <header style={{ position:'absolute', top:12, left:12, pointerEvents:'none' }}>
-        <VersionBadge name="Platform" version={showingSamples ? 'Sample' : 'v0.1'} />
+        <VersionBadge name="Platform" version={showingSamples ? 'Sample' : 'v0.2'} />
       </header>
 
       {signedIn

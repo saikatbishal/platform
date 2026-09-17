@@ -1,20 +1,17 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { IndiaMap, type IndiaMapHandle } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
-import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
 import { useJourneys } from '@/features/journeys/useJourneys.ts'
 import { AddJourneyForm } from '@/features/journeys/AddJourneyForm.tsx'
 import { useAuth } from '@/features/auth/AuthProvider.tsx'
 import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
-import { StationBoard, BoardBracket } from '@/components/StationBoard.tsx'
-import { PlatformCanopy } from '@/components/PlatformCanopy.tsx'
 import { JourneysSheet } from '@/components/JourneysSheet.tsx'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
 import { formatKm } from '@/lib/distance.ts'
 import { evaluateMilestones } from '@/features/stats/milestones.ts'
 import { Milestones } from '@/features/stats/Milestones.tsx'
-import { PassportCard } from '@/features/passport/PassportCard.tsx'
+import { RailPass } from '@/features/railpass/RailPass.tsx'
 
 interface Stats {
   km: number
@@ -30,11 +27,6 @@ interface Stats {
 
 export default function App() {
   const [stats, setStats] = useState<Stats>({ km: 0, longestKm: 0, stations: 0, states: 0, uncounted: 0 })
-  // The board can be taken down. Signed out, the map underneath is the whole
-  // pitch, and a first-time visitor should be able to look at it without
-  // dismissing anything permanently — so this is a hinge, not a dismissal, and
-  // it deliberately does not persist: a returning visitor gets the way in back.
-  const [boardUp, setBoardUp] = useState(true)
   const onStats = useCallback((s: Stats) => { setStats(s) }, [])
   // Loaded here rather than inside IndiaMap so there is exactly one fetch of
   // the 8,696 stations and the rail graph for the whole app — the map draws
@@ -55,18 +47,24 @@ export default function App() {
    */
   const store = useJourneys(auth.user?.id ?? null)
   /*
-   * The samples are a fallback for an empty map, not seed data written into
-   * anyone's storage. A visitor with nothing logged gets a map that shows what
-   * the app is for; the moment they log something it is theirs alone. A
-   * signed-in user with nothing logged gets the real empty map, because
-   * showing them someone else's sample travel as though it were theirs is
-   * worse than showing them nothing.
+   * `mine` is the honest count of this person's own journeys, and it is what
+   * gates the chrome below. Signed out is not the same thing as having
+   * nothing: an unsigned visitor can log journeys, and they are as real as
+   * anyone's.
+   *
+   * There used to be a fallback here — SAMPLE_JOURNEYS, drawn for anyone with
+   * nothing of their own — deleted along with the file. It was seed data for
+   * an empty map from the era this app was entirely behind a sign-in wall
+   * (docs/00-decisions.md, decision 11); once logging works with no account,
+   * showing someone else's trip to Vellore in place of an honest empty map
+   * has no purpose, and it is data a visitor never asked for. Zero journeys
+   * now means the map shows zero journeys.
    */
-  const showingSamples = store.journeys.length === 0 && !signedIn
-  const journeys = showingSamples ? SAMPLE_JOURNEYS : store.journeys
+  const mine = store.journeys.length
+  const journeys = store.journeys
   const [entryOpen, setEntryOpen] = useState(false)
   const [milestonesOpen, setMilestonesOpen] = useState(false)
-  const [passportOpen, setPassportOpen] = useState(false)
+  const [railPassOpen, setRailPassOpen] = useState(false)
   /**
    * The route whose tooltip was opened to full detail — there is no
    * standalone "browse everything" entry point, only a route's own tooltip.
@@ -96,6 +94,41 @@ export default function App() {
     [stats.km, stats.stations, stats.states, journeys],
   )
 
+  /*
+   * The primary action, declared once and placed twice: bottom-right on a
+   * phone (where the +/-/Fit stack used to be) and in the bottom-left stack on
+   * anything wider, above Milestones and Rail pass.
+   *
+   * Thumb reach is the whole argument for the placement. On a phone held
+   * one-handed the bottom-right corner is the easiest thing on the screen to
+   * hit and the bottom-left is the hardest, and the one thing this screen
+   * wants a visitor to do should not be in the hardest corner. On a desktop
+   * the pointer makes every corner equal, so it stays grouped with the other
+   * two buttons where the grouping means something.
+   *
+   * Square rather than the wide text pill Milestones and Rail pass use —
+   * shape is what marks it as the primary action instead of a third item in
+   * that row. Filled with `--board`, not `--accent`: the header comment above
+   * already states the rule ("the yellow belongs to the route"), and
+   * tokens.css documents `--board` as the one deliberate exception — paint on
+   * a real object, identical in both themes, not a palette colour. A square
+   * yellow button with a plus reads as a control on the platform, not as a
+   * route borrowing its colour.
+   */
+  const addJourney = (
+    <button
+      type="button"
+      onClick={() => { setEntryOpen(true) }}
+      aria-label={mine === 0 ? 'Add your first journey' : 'Add a journey'}
+      title={mine === 0 ? 'Add your first journey' : 'Add a journey'}
+      className="flex size-10 items-center justify-center rounded-sm bg-board text-2xl leading-none
+                 font-semibold text-board-ink shadow-[0_1px_0_0_rgba(18,40,63,0.35)]
+                 transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
+    >
+      <span aria-hidden="true">+</span>
+    </button>
+  )
+
   return (
     <main className="relative h-dvh w-full overflow-hidden bg-ground">
       <IndiaMap
@@ -113,7 +146,7 @@ export default function App() {
       />
 
       {/* Roadmap Phase 1, item 8. This was the loudest thing on screen and it
-          said "v0.1": full-strength accent on a 2px border, spending the one
+          said "v0.2": full-strength accent on a 2px border, spending the one
           colour that means "you have travelled this" on a version number. It
           is now ink on surface with a hairline, and the radii nest properly —
           outer 2px, border 1px, inner 1px, so the inner corner is concentric
@@ -124,7 +157,7 @@ export default function App() {
           Platform
         </span>
         <span className="rounded-r-[1px] border-l border-line px-2.5 py-1.5 text-label font-semibold tracking-label text-ink-faint uppercase">
-          v0.1
+          v0.2
         </span>
       </header>
 
@@ -134,97 +167,45 @@ export default function App() {
         </div>
       )}
 
+      {/* The map is the pitch, so sign-in is a corner affordance rather than a
+          wall. The station-name board that used to stand here — canopy,
+          bracket, headline and all — was the loudest thing on the screen and
+          it asked for a decision before anyone had seen what they were
+          deciding about. The components survive in src/components/ for the
+          share page; what changed is that nothing now stands between a first
+          visit and the map. The ask moves to the point where it has been
+          earned — once `mine > 0` — and it lives entirely on the icon below;
+          see the comment on SignInButton's `nudge` prop for the mechanism. */}
       {!signedIn && auth.status !== 'loading' && (
-        <div
-          className={`pointer-events-auto absolute inset-x-0 flex justify-center px-4 sm:inset-x-auto sm:right-4 sm:top-16 sm:bottom-auto sm:px-0 ${
-            statsExpanded ? 'bottom-96' : 'bottom-48'
-          }`}
-        >
-          {/* Bottom-anchored on a phone so the button is in thumb reach, but
-              clear of the map's own furniture: the zoom/fit/sea stack is four
-              40px buttons at bottom-3, so it ends 174px up, and bottom-48
-              (192px) clears the collapsed stats/journey/milestones stack
-              below. That stack can run to five or six rows when someone
-              expands the phone stats list, which reaches high enough to sit
-              under this card — bottom-96 while `statsExpanded` is true keeps
-              them apart without needing the two to know each other's exact
-              height. On sm and up the card moves to the top-right corner,
-              where nothing else lives, and this never applies. */}
-          {/* The way in is a station name board hung off a bracket, not a
-              generic auth card. Structure borrowed from Relume's Log In 3
-              (mark above, one column, heading + description, stacked actions)
-              and then rebuilt on this project's tokens — the library itself
-              stays out, per docs/00-decisions.md. */}
-          {boardUp ? (
-            <section
-              aria-label="Sign in"
-              className="relative w-full max-w-sm overflow-hidden rounded-sm border border-line bg-surface shadow-2xl"
-            >
-              <PlatformCanopy />
-
-              <button
-                type="button"
-                onClick={() => { setBoardUp(false) }}
-                aria-label="Take the board down and look at the map"
-                className="absolute top-0 right-0 z-10 grid size-11 place-items-center text-ink-faint
-                           transition-colors duration-150 hover:text-ink"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                  <path d="M1 1 L11 11 M11 1 L1 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-
-              <div className="relative px-4 pt-9 pb-5 sm:px-5">
-                <BoardBracket />
-                <StationBoard
-                  devanagari="प्लेटफ़ॉर्म"
-                  latin="Platform"
-                  regional="প্ল্যাটফর্ম"
-                  code="PF"
-                  zone="EST 2026"
-                />
-
-                <h1 className="mt-5 mb-0 text-lg leading-snug font-extrabold tracking-tight text-ink">
-                  Your rail life, on one map.
-                </h1>
-                <p className="mt-1.5 mb-4 text-sm leading-relaxed text-ink-soft">
-                  Log a journey in fifteen seconds and watch India fill in.
-                  The map behind this board is a preview with sample journeys.
-                </p>
-
-                <SignInButton
-                  mode={auth.mode}
-                  onSignIn={auth.signIn}
-                  redirecting={auth.status === 'redirecting'}
-                />
-                {auth.error && (
-                  <p className="mt-2.5 mb-0 text-xs leading-relaxed text-vermillion">{auth.error}</p>
-                )}
-              </div>
-            </section>
-          ) : (
-            <button
-              type="button"
-              onClick={() => { setBoardUp(true) }}
-              className="relative flex min-h-11 items-center gap-2.5 rounded-[2px] bg-board px-3.5 py-2
-                         shadow-[0_2px_0_0_rgba(18,40,63,0.35)] ring-2 ring-board-edge ring-inset
-                         transition-transform duration-150 hover:-translate-y-px"
-            >
-              <span className="font-mono text-label font-semibold tracking-code text-board-ink">PF</span>
-              <span className="h-3.5 w-px bg-board-ink/30" />
-              <span className="text-sm font-extrabold tracking-label text-board-ink uppercase">
-                Sign in
-              </span>
-            </button>
+        <div className="pointer-events-auto absolute top-3 right-3 flex flex-col items-end gap-1.5">
+          <SignInButton
+            mode={auth.mode}
+            onSignIn={auth.signIn}
+            redirecting={auth.status === 'redirecting'}
+            variant="icon"
+            nudge={mine > 0}
+          />
+          {auth.error && (
+            <p className="mb-0 max-w-56 rounded-sm border border-line bg-surface/90 px-2 py-1.5 text-right text-xs leading-relaxed text-vermillion backdrop-blur-sm">
+              {auth.error}
+            </p>
           )}
         </div>
       )}
 
-      {/* Stacked bottom-up in one flex column, not three independently
+      {/* `bottom-3` at every width, level with the + button on a phone: the
+          collapsed row is just "Stats ▸" now, not "Kilometres — 1000", and a
+          three-word pill on the left with a 56px square on the right leaves
+          real clearance between them even at 320px. (It used to sit on
+          `bottom-16` on phones specifically to clear that button, back when
+          the collapsed label carried a value and was wide enough to reach
+          under it — no longer true once "Stats" replaced the value.)
+
+          Stacked bottom-up in one flex column, not three independently
           positioned elements at fixed pixel offsets: the stats list below is
-          one row on a wide screen but up to six on a phone, and a fixed
-          `bottom-40`/`bottom-24` tuned for the short version is exactly what
-          let the tall version paint over these buttons. First DOM child sits
+          one row on a wide screen but up to six on a phone once expanded, and
+          a fixed offset tuned for the short version is exactly what would let
+          the tall version paint over these buttons. First DOM child sits
           visually lowest with `flex-col-reverse`, so stats stays first here
           and everything else stacks above however tall it turns out to be. */}
       <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col-reverse items-start gap-2">
@@ -232,28 +213,63 @@ export default function App() {
           aria-label="Your totals"
           className="flex flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex-row"
         >
-          {/* Kilometres always shows and doubles as the phone list's
-              expand/collapse control — a `<button>` rather than a `<div>` so
-              the whole row is one thumb-sized tap target, not a tiny
-              chevron. Inert at sm and up, where the card view never
-              collapses and this control would have nothing to do. */}
+          {/* The expand/collapse control on a phone, and — from sm up,
+              where the card view never collapses — the Kilometres column,
+              which is why it keeps its own markup rather than joining the
+              array below: the two screen sizes show genuinely different
+              content in this cell, not just a relabelled one. A `<button>`
+              rather than a `<div>` so the whole row is one thumb-sized tap
+              target on the phone, not a tiny chevron; inert at sm and up.
+
+              "Stats" replaces what used to be "Kilometres — <value>" here:
+              with Kilometres now just one of four rows the button reveals
+              rather than the row that stands in for all of them, showing its
+              own value on the closed button was a leftover of the old
+              layout, not something worth keeping on its own. */}
           <button
             type="button"
             onClick={() => { setStatsExpanded((e) => !e) }}
             aria-expanded={statsExpanded}
             className="pointer-events-auto flex items-baseline gap-1.5 border-b border-line px-3 py-2 text-left last:border-b-0 sm:pointer-events-none sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0"
           >
-            <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
+            <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:hidden">
+              Stats
+            </span>
+            <span className="hidden text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5 sm:inline">
               Kilometres
             </span>
-            <span className="text-ink-faint sm:hidden">–</span>
-            <span className="tabular text-sm leading-none text-cream sm:text-xl">
+            <span className="hidden tabular text-sm leading-none text-cream sm:inline sm:text-xl">
               {formatKm(stats.km).replace(' km', '')}
             </span>
             <span aria-hidden="true" className="ml-auto text-ink-faint sm:hidden">
               {statsExpanded ? '▾' : '▸'}
             </span>
           </button>
+          {/* Mobile expanded list: all four, Kilometres included — the
+              button above no longer shows its value when collapsed, so it has
+              to appear somewhere once expanded. sm:hidden unconditionally:
+              this list is never the desktop presentation, the row below is. */}
+          {([
+            ['Kilometres', formatKm(stats.km).replace(' km', '')],
+            ['Stations', stats.stations.toLocaleString('en-IN')],
+            ['States', String(stats.states)],
+            ['Longest', formatKm(stats.longestKm).replace(' km', '')],
+          ] as const).map(([label, value]) => (
+            <div
+              key={label}
+              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:hidden`}
+            >
+              <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
+                {label}
+              </span>
+              <span className="text-ink-faint">–</span>
+              <span className="tabular text-sm leading-none text-cream">{value}</span>
+            </div>
+          ))}
+          {/* Desktop row: Kilometres already has its own column via the
+              button, so only the other three repeat here — always visible,
+              never gated on statsExpanded, which does not exist as a concept
+              at this width. Unchanged from before this edit. */}
           {([
             ['Stations', stats.stations.toLocaleString('en-IN')],
             ['States', String(stats.states)],
@@ -261,12 +277,11 @@ export default function App() {
           ] as const).map(([label, value]) => (
             <div
               key={label}
-              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0`}
+              className="hidden items-baseline gap-1.5 border-line px-3 py-2 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-r sm:py-3 sm:last:border-r-0"
             >
               <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
                 {label}
               </span>
-              <span className="text-ink-faint sm:hidden">–</span>
               <span className="tabular text-sm leading-none text-cream sm:text-xl">{value}</span>
             </div>
           ))}
@@ -287,55 +302,71 @@ export default function App() {
               <span className="tabular text-sm leading-none text-oxide">{stats.uncounted}</span>
             </div>
           )}
-          {(demo || showingSamples) && (
+          {demo && (
             <div className={`${statsExpanded ? 'block' : 'hidden'} border-b border-line bg-surface-2 px-3 py-2 last:border-b-0 sm:flex sm:items-center sm:justify-center sm:border-b-0 sm:border-l sm:py-3`}>
               <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
-                {/* "Sample" only while the samples are actually what is drawn —
-                    once someone logs a journey the totals are their own, and
-                    labelling them a sample would be a lie. */}
-                {showingSamples ? 'Sample' : 'Demo'}
+                Demo
               </span>
             </div>
           )}
         </section>
 
-        {/* Signed out, the map is the whole pitch and the totals below it are
-            somebody else's sample journeys. All three of these act on a rail
-            life the visitor does not have yet: logging writes to a journey
-            store keyed on a user id that is null, milestones would count
-            progress against the samples, and the passport card would hand
-            them a shareable image of travel they have not done. The board
-            already carries the one action available to them. */}
-        {signedIn && (
-          <>
+        {/* Ordering here is bottom-up (flex-col-reverse, first child lowest):
+            totals, then milestones and the pass, then — on sm and up only —
+            the primary action. "Add your journey" sits ABOVE the two
+            secondary buttons rather than under them, because it is the only
+            thing on this screen a new visitor should feel any pull toward.
+            On a phone it is not in this stack at all; it is in the
+            bottom-right corner.
+
+            There used to be a fourth thing here — a "save your journeys"
+            panel with its own full-width sign-in button, shown once
+            `mine > 0`. Removed: it never closed itself, so it sat on screen
+            for as long as someone stayed signed out, which read as a banner
+            rather than a nudge. The ask for a returning visitor now lives
+            entirely on the icon in the top-right corner — a small dot plus a
+            tooltip that opens itself briefly and closes on its own; see the
+            `nudge` prop on SignInButton.
+
+            What gates these is `mine`, not `signedIn`. An unsigned visitor can
+            log journeys now, and the moment they have one the milestones and
+            the pass are about their travel, so they appear. At zero they stay
+            hidden: there is nothing to open — milestones would show every
+            milestone locked, and the pass would hand out a shareable card
+            reading 0 km / 0 stations / 0 states, which looks broken rather
+            than empty. */}
+        {mine > 0 && (
+          <div className="pointer-events-auto flex gap-2">
             <button
               type="button"
-              onClick={() => { setEntryOpen(true) }}
-              className="pointer-events-auto rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
+              onClick={() => { setMilestonesOpen(true) }}
+              className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
             >
-              + Log a journey
+              Milestones
             </button>
-
-            <div className="pointer-events-auto flex gap-2">
-              <button
-                type="button"
-                onClick={() => { setMilestonesOpen(true) }}
-                className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
-              >
-                Milestones
-              </button>
-              <button
-                type="button"
-                onClick={() => { setPassportOpen(true) }}
-                disabled={!mapData}
-                className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
-              >
-                Passport card
-              </button>
-            </div>
-          </>
+            <button
+              type="button"
+              onClick={() => { setRailPassOpen(true) }}
+              disabled={!mapData}
+              className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
+            >
+              Rail pass
+            </button>
+          </div>
         )}
+
+        {/* On a phone this button is not here — it is bottom-right, in the
+            corner the map's zoom stack used to hold. Rendered from one
+            `addJourney` element in both places rather than written twice, so
+            the label and the handler cannot drift apart. */}
+        <div className="pointer-events-auto hidden sm:block">{addJourney}</div>
+
       </div>
+
+      {/* Phones only. Same element as the one in the stack above; see
+          `addJourney`. bottom-3 right-3 puts it exactly where the zoom stack
+          was, so the corner keeps a purpose instead of going empty. */}
+      <div className="pointer-events-auto absolute right-3 bottom-3 sm:hidden">{addJourney}</div>
 
       {milestonesOpen && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
@@ -348,17 +379,17 @@ export default function App() {
         </div>
       )}
 
-      {passportOpen && mapData && (
+      {railPassOpen && mapData && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
           <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
             <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
-              Passport card
+              Rail pass
             </h2>
-            <PassportCard
+            <RailPass
               data={mapData}
               journeys={journeys}
               stats={stats}
-              onClose={() => { setPassportOpen(false) }}
+              onClose={() => { setRailPassOpen(false) }}
             />
           </div>
         </div>
@@ -375,7 +406,6 @@ export default function App() {
             mapRef.current?.flyToJourney(journeyId)
           }}
           onRemove={(journeyId) => { store.remove(journeyId) }}
-          readOnly={showingSamples}
         />
       )}
 
@@ -383,7 +413,7 @@ export default function App() {
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
           <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
             <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
-              Log a journey
+              Add a journey
             </h2>
             <AddJourneyForm
               stations={mapData?.stations}

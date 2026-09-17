@@ -12,7 +12,15 @@
 
     "noEmit": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+
+    // scripts/check-merge.ts imports src/features/journeys/mergeJourneys.ts,
+    // which is written in the app's own style: explicit ".ts" extensions and
+    // the "@/" alias. Safe with noEmit — nothing here is ever emitted, so no
+    // ".ts" specifier can survive into output. The alias has to be repeated
+    // rather than inherited because this is a separate project, not an extend.
+    "allowImportingTsExtensions": true,
+    "paths": { "@/*": ["./src/*"] }
   },
   "include": ["scripts", "vite.config.ts"]
 }

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { routeForJourney, type RailGraph } from '@/features/map/route.ts'
 import { isSupabaseConfigured } from '@/lib/supabase.ts'
-import { keyFor, read, write } from './journeyStorage.ts'
+import { keyFor, read, takeAnon, write } from './journeyStorage.ts'
+import { mergeJourneys } from './mergeJourneys.ts'
 import { addToSupabase, readFromSupabase, removeFromSupabase } from './journeyStorageSupabase.ts'
 import type { Journey, JourneyDraft } from '@/types/index.ts'
 
@@ -40,7 +41,18 @@ export function useJourneys(userId: string | null): JourneyStore {
    * documented pattern for "this state is derived from a prop that changed".
    */
   if (store.userId !== userId) {
-    setStore({ userId, journeys: [], loaded: false })
+    /*
+     * Supabase path: empty, and the fetch below fills it. Local path: read the
+     * new user's bucket right here, because nothing else will — this used to
+     * set [] unconditionally, which meant that signing in while Supabase was
+     * unconfigured (demo mode) blanked the map and left the journeys sitting
+     * unread in storage under the user's key.
+     */
+    setStore({
+      userId,
+      journeys: useSupabase ? [] : read(keyFor(userId)),
+      loaded: !useSupabase,
+    })
   }
 
   // Fetch from Supabase on userId change (or on mount if userId was already set)
@@ -49,14 +61,67 @@ export function useJourneys(userId: string | null): JourneyStore {
     if (!userId) return // Already cleared above
 
     let stale = false
-    readFromSupabase(userId).then((journeys) => {
+    readFromSupabase(userId).then(async (server) => {
       if (stale) return
-      setStore((prev) => (prev.userId === userId ? { userId, journeys, loaded: true } : prev))
+
+      /*
+       * First sign-in after logging journeys anonymously. Those rows are the
+       * whole point of letting someone use the app before they commit to an
+       * account, so they are handed to the server here — the server's own copy
+       * winning every collision, see mergeJourneys.
+       */
+      const { journeys: anon, commit } = takeAnon()
+      const { merged, added } = mergeJourneys(server, anon)
+
+      setStore((prev) => (prev.userId === userId ? { userId, journeys: merged, loaded: true } : prev))
+      if (added.length === 0) {
+        // Nothing new, but the bucket still holds duplicates of rows the
+        // server already has. Clearing it stops them being re-offered on
+        // every future sign-in on this browser.
+        commit()
+        return
+      }
+
+      try {
+        // Sequential rather than Promise.all: a partial failure has to leave
+        // the anonymous bucket untouched, and a half-settled batch of parallel
+        // inserts makes "what actually landed" unanswerable.
+        for (const j of added) await addToSupabase(userId, j)
+        commit()
+      } catch {
+        if (stale) return
+        // The bucket was never emptied, so nothing is lost — the journeys are
+        // still on this device and the next sign-in will try again.
+        setStore((prev) => (prev.userId === userId ? { userId, journeys: server, loaded: true } : prev))
+        console.warn(
+          `[journeys] could not move ${added.length} journeys from this device into your account. ` +
+          'They are still saved here and will be retried next sign-in.',
+        )
+      }
     })
 
     return () => {
       stale = true
     }
+  }, [userId, useSupabase])
+
+  /*
+   * The same handover for the local path — demo mode, or Supabase not
+   * configured yet. Runs once per sign-in: takeAnon empties the bucket, so a
+   * re-render cannot replay it.
+   */
+  useEffect(() => {
+    if (useSupabase) return
+    if (!userId) return
+
+    const { journeys: anon, commit } = takeAnon()
+    if (anon.length === 0) return
+
+    const key = keyFor(userId)
+    const { merged, added } = mergeJourneys(read(key), anon)
+    if (added.length > 0) write(key, merged)
+    commit()
+    setStore((prev) => (prev.userId === userId ? { userId, journeys: merged, loaded: true } : prev))
   }, [userId, useSupabase])
 
   const add = useCallback(

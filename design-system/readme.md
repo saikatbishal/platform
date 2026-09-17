@@ -2,8 +2,19 @@
 
 **Platform** is a personal record of every train journey its author has taken
 across India, drawn as a hand-built map of India that fills in as they travel.
-A mobile-first browser app, installable to the home screen, entirely behind a
-Google sign-in. One user: the author.
+A mobile-first browser app, installable to the home screen. The map, the
+journey log, milestones and the rail pass all work without an account; signing
+in with Google is what stops them living in one browser. One user today: the
+author.
+
+> **Changed 17 September 2026.** This paragraph previously read "entirely
+> behind a Google sign-in", and every screen in this system was designed on
+> that assumption — including the station-name board sign-in panel, which has
+> been removed from `App.tsx`. The app is now anonymous-first (decision 11 in
+> `docs/00-decisions.md`), which means the signed-out state is a real state
+> with real chrome in it, not a wall. The shareable card is a **rail pass**,
+> not a passport (decision 13). Re-sync this project from the repository to
+> pick the rest of it up.
 
 Three sentences from the repository README are load-bearing, and they define
 the product more sharply than any feature list: it is **not** a booking app,
@@ -310,7 +321,9 @@ touch targets) and **Brand** (marks, share card, voice).
 
 The app's single surface, recreated and interactive: sign in, dismiss and
 re-raise the board, log a journey, watch the totals and milestones change, open
-the passport card. `README.md` in that directory lists exactly what it does and
+the rail pass. The board it raises and dismisses no longer exists in the app
+(decision 11) — this kit is a specimen of the previous shape until it is
+re-synced. `README.md` in that directory lists exactly what it does and
 does not reproduce — most importantly that the real map's Survey-of-India
 geometry is generated at build time and is not in the repository, so this kit
 substitutes public-domain Natural Earth geometry and twenty stations.

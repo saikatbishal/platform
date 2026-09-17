@@ -177,6 +177,7 @@ export function usePanZoom(
     }
 
     const onUp = (e: PointerEvent) => {
+      const wasPinching = pointers.current.size === 2
       pointers.current.delete(e.pointerId)
       if (pointers.current.size < 2) pinchDist.current = 0
       if (pointers.current.size === 0) {
@@ -187,6 +188,39 @@ export function usePanZoom(
         for (const h of history.current) if (now - h.t < 90) { sx += h.dx; sy += h.dy; n++ }
         if (n > 1) velocity.current = { x: (sx / n) * 1.6, y: (sy / n) * 1.6 }
         history.current = []
+      }
+
+      /*
+       * Snap back to the whole country when a pinch ends at the zoom floor.
+       *
+       * This exists because the +/−/Fit stack is hidden on phones: with no Fit
+       * button, pinching out is the only way back to the overview, and pinching
+       * out alone does not get you there. ZOOM_MIN is 0.85, so the floor is
+       * *below* the fitted scale, and `clamp` only guarantees the country keeps
+       * 35% of the viewport — so you can arrive at minimum zoom with India
+       * shoved against one edge and no way to centre it. Releasing at the floor
+       * now re-centres, which is the gesture equivalent of the button that went
+       * away.
+       *
+       * Gated on `wasPinching` so it cannot fire at the end of an ordinary
+       * one-finger pan that happens to be at minimum zoom — that would yank the
+       * map out from under someone who was deliberately looking at a corner.
+       */
+      if (wasPinching && pointers.current.size === 0 && view.current.k <= fit.current * (ZOOM_MIN + 0.02)) {
+        const vw = el.clientWidth, vh = el.clientHeight
+        const to: View = {
+          k: fit.current,
+          x: (vw - MAP_WIDTH * fit.current) / 2,
+          y: (vh - MAP_HEIGHT * fit.current) / 2,
+        }
+        velocity.current = { x: 0, y: 0 }
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          view.current = to
+          dirty.current = true
+        } else {
+          flyAnim.current = { from: { ...view.current }, to, start: performance.now(), duration: 320 }
+          dirty.current = true
+        }
       }
     }
 
