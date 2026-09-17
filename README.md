@@ -6,6 +6,11 @@ fills in as I travel.
 **Not** a booking app. **Not** a live-tracking app. **Not** a social network.
 Those three sentences are load-bearing — see `docs/03-project-spec.md`.
 
+The map, the journey log, milestones and the rail pass all work **without an
+account**. Signing in is what stops them living in one browser. This reverses
+an earlier decision that put everything behind a Google sign-in — the reasoning
+is decision 11 in `docs/00-decisions.md`.
+
 ---
 
 ## Getting it running
@@ -62,7 +67,7 @@ platform/
     ├── lib/               pure functions: distance, projection, supabase client
     ├── types/
     ├── components/        presentational, no feature knowledge
-    └── features/          map · journeys · stats · passport
+    └── features/          map · journeys · stats · railpass
 ```
 
 ---
@@ -71,11 +76,11 @@ platform/
 
 | | | |
 | --- | --- | --- |
-| Vite 8 + React 19 + TypeScript 7 | build & UI | no SSR needed — it's all behind a login |
+| Vite 8 + React 19 + TypeScript 7 | build & UI | no SSR needed — the map is client-drawn and the data is static JSON |
 | Tailwind 4 | styling | palette lives in `tokens.css`, bridged via `@theme inline` |
 | Motion 13 | animation | the reward loop *is* animation, so it gets a real library |
 | d3-geo | maths only | projection for the hand-drawn map. No tiles, no map library. |
-| Supabase | database + auth | Postgres, Google sign-in only, row-level security |
+| Supabase | database + auth | Postgres, Google sign-in only, row-level security. Signed-out journeys stay in `localStorage`. |
 | TanStack Query | server state | journeys are a caching problem, not a state problem |
 | vite-plugin-pwa | install | home-screen install is what makes a web app feel native |
 
@@ -110,13 +115,38 @@ compiled into the browser bundle. The key belongs in an Edge Function's secrets.
 
 ---
 
+## Product decisions
+
+Recorded 17 September 2026, after a round of outside critique. Full reasoning
+and the honest cost of each one is in `docs/00-decisions.md` — that file is
+canonical, this is the index.
+
+| | Decided | Status |
+| --- | --- | --- |
+| 11 | **The app works before sign-in.** Log journeys, fill the map, earn milestones and a pass with no account; sign-in merges them into the account and stops them living in one browser. | Built |
+| 12 | **Auto-logging arrives by email, not by camera.** Parse the IRCTC confirmation at a per-user secret address. OCR is third in line. | Planned |
+| 13 | **"Passport" becomes "rail pass."** Railway-native, and it keeps the collecting metaphor that made "passport" legible. | Built |
+| 14 | **The light theme gets designed first, and it goes cool.** Warm cream plus amber is the default look of every AI-built app; board yellow stays fixed and does the work against a pale blue-grey. | Next |
+| 15 | **A share page, not live tracking.** A journey renders from the scheduled timetable already shipped in `public/maps/`, openable without an account. No live status, no push. | Planned |
+
+Two of these reverse something written down earlier, which is the point of
+writing things down: 11 reverses "entirely behind a Google sign-in", and 12
+reverses the *email ticket import* line in the list below.
+
+---
+
 ## Not in v1
 
-Live train status · booking · email ticket import · multi-leg trips as one
-journey · friends, following, leaderboards · photos · flights, buses, metros.
+Live train status · booking · multi-leg trips as one journey · friends,
+following, leaderboards · photos · flights, buses, metros.
 
 Any new idea goes in a v2 note and nowhere else. Scope creep is the most likely
 way this project fails, and the list is the commitment against it.
+
+Email ticket import was on this list and has been taken off it deliberately —
+see decision 12. Live train status stays on it, and the share page in decision
+15 is built from scheduled data precisely so it does not quietly become live
+tracking.
 
 ---
 

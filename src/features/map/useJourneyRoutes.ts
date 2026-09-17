@@ -19,14 +19,14 @@ export interface JourneyRouteFailure {
 
 /**
  * Journeys expanded into drawable paths, shared by the main map and anything
- * else that needs the same lines (the passport card's mini-map).
+ * else that needs the same lines (the rail pass's mini-map).
  *
- * Extracted from IndiaMap.tsx rather than duplicated: the passport card wants
+ * Extracted from IndiaMap.tsx rather than duplicated: the rail pass wants
  * exactly the same routing a journey gets on the real map, and a second copy
  * of this is a second place for the two to quietly disagree.
  *
  * `trainStops` is optional — a caller with no shard fetches of its own (the
- * passport card doesn't run useTrainStops) just gets the shortest-path
+ * rail pass doesn't run useTrainStops) just gets the shortest-path
  * fallback for every journey, which is the same distinction IndiaMap already
  * draws as a dashed line. Fine for a thumbnail; the primary map is the place
  * that has to get the exact/inferred distinction right.

@@ -723,12 +723,22 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
           are still above this — they come after it. */}
       <canvas ref={labelCanvas} className="pointer-events-none absolute inset-0 h-full w-full" aria-hidden="true" />
 
-      <div className="pointer-events-auto absolute right-3 bottom-3 flex flex-col overflow-hidden rounded-sm border border-line bg-surface">
-        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const t0 = performance.now(); animatedZoomBy(1.6); console.log(`[zoom+] ${(performance.now() - t0).toFixed(1)}ms`) }} aria-label="Zoom in"
+      {/* Phones do not get these. Pinch zooms, one finger pans, and a pinch
+          released at the zoom floor re-centres on the whole country
+          (usePanZoom's onUp) — so all three buttons duplicate a gesture the
+          hand is already making, while occupying the best corner on the
+          smallest screen. That corner now belongs to the primary action. On a
+          pointer device there is no pinch, so they stay.
+
+          The perf console.logs that used to be wired into these came out with
+          them: they were instrumentation from chasing the zoom jank, and they
+          were still firing in production builds. */}
+      <div className="pointer-events-auto absolute right-3 bottom-3 hidden flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex">
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); animatedZoomBy(1.6) }} aria-label="Zoom in"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">+</button>
-        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const t0 = performance.now(); animatedZoomBy(1 / 1.6); console.log(`[zoom-] ${(performance.now() - t0).toFixed(1)}ms`) }} aria-label="Zoom out"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); animatedZoomBy(1 / 1.6) }} aria-label="Zoom out"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">−</button>
-        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); const t0 = performance.now(); animatedReset(); console.log(`[fit] ${(performance.now() - t0).toFixed(1)}ms`) }} aria-label="Fit the whole country"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); animatedReset() }} aria-label="Fit the whole country"
           className="h-10 w-10 border-b border-line text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent">Fit</button>
       </div>
 

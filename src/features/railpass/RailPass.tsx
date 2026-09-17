@@ -121,7 +121,7 @@ function drawCard(canvas: HTMLCanvasElement, args: {
  * routes, the date. Rendered client-side, downloadable, shared where the
  * browser supports handing a file to the OS share sheet.
  */
-export function PassportCard({ data, journeys, stats, onClose }: Props) {
+export function RailPass({ data, journeys, stats, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { routes } = useJourneyRoutes(data, journeys)
   const [canShareFiles, setCanShareFiles] = useState(false)
@@ -163,7 +163,7 @@ export function PassportCard({ data, journeys, stats, onClose }: Props) {
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = 'platform-passport.png'
+            a.download = 'platform-rail-pass.png'
             a.click()
             URL.revokeObjectURL(url)
           }}
@@ -177,7 +177,7 @@ export function PassportCard({ data, journeys, stats, onClose }: Props) {
             onClick={async () => {
               const blob = await toBlob()
               if (!blob) return
-              const file = new File([blob], 'platform-passport.png', { type: 'image/png' })
+              const file = new File([blob], 'platform-rail-pass.png', { type: 'image/png' })
               try {
                 await navigator.share({ files: [file], title: 'My rail journeys' })
               } catch {

@@ -10,7 +10,7 @@ components, hooks, and queries, and exports only what other features need.
   journey ever takes longer than that, treat it as a v1-severity bug.
 - **stats/** — kilometres, stations, states, longest. Derived from journeys,
   never stored. Cream numerals, tabular figures.
-- **passport/** — the shareable card, rendered to canvas and downloadable.
+- **railpass/** — the shareable card, rendered to canvas and downloadable.
 
 Cross-feature code goes in `src/lib` (pure functions) or `src/components`
 (presentational, no feature knowledge).

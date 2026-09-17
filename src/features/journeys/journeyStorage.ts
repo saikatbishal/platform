@@ -86,3 +86,33 @@ export function write(key: string, journeys: readonly Journey[]): void {
     if (import.meta.env.DEV) console.warn('[journeys] could not persist', e)
   }
 }
+
+/**
+ * The bucket an unsigned visitor writes to.
+ *
+ * Named rather than spelled out at each call site, because two places have to
+ * agree on it exactly: the store an anonymous visitor writes to, and the
+ * migration that empties it on first sign-in. A typo in either one silently
+ * loses somebody's travel.
+ */
+export const ANON_KEY = keyFor(null)
+
+/**
+ * Read the anonymous bucket and clear it in one step.
+ *
+ * One step on purpose. Read-then-clear-later leaves a window where a refresh
+ * mid-sign-in replays the same journeys into the account a second time, and
+ * clearing first loses them all if the write that follows fails. The rows are
+ * returned to the caller, which is holding them in memory, and the bucket is
+ * emptied only if the caller says the handover succeeded — hence `commit`.
+ */
+export function takeAnon(): { journeys: Journey[]; commit: () => void } {
+  const journeys = read(ANON_KEY)
+  return {
+    journeys,
+    commit: () => {
+      if (journeys.length === 0) return
+      write(ANON_KEY, [])
+    },
+  }
+}

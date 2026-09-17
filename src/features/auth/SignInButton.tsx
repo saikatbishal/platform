@@ -5,6 +5,14 @@ interface Props {
   mode: AuthMode
   onSignIn: () => Promise<void>
   redirecting: boolean
+  /**
+   * `panel` is the full-width button with its label, used where the ask has
+   * already been earned — the save prompt that appears once journeys exist.
+   * `icon` is the corner affordance for someone who has not asked for
+   * anything yet: the map is the pitch, and sign-in should be available
+   * without being the first thing on screen.
+   */
+  variant?: 'panel' | 'icon'
 }
 
 /** Google's "G", per their brand spec — the four official colours, unaltered. */
@@ -20,17 +28,59 @@ function GoogleG() {
 }
 
 /**
- * The one way into the app. Google's branding rules ask for their logo on a
- * plain light or dark surface — so this button stays neutral on purpose, and
- * the surrounding card carries the app's character instead.
+ * Sign-in. No longer the way INTO the app — the map and the add-journey flow
+ * both work without an account, and journeys logged that way are merged into
+ * the account on first sign-in (see journeyStorage.mergeJourneys). This is the
+ * way to stop losing them to one browser.
+ *
+ * Google's branding rules ask for their logo on a plain light or dark surface,
+ * so the button stays neutral on purpose and whatever surrounds it carries the
+ * app's character instead.
  *
  * In demo mode the Google mark is gone, because nothing about that session
  * involves Google and a borrowed logo would be a lie about where your data is.
  */
-export function SignInButton({ mode, onSignIn, redirecting }: Props) {
+export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel' }: Props) {
   const [pressed, setPressed] = useState(false)
   const busy = redirecting || pressed
   const demo = mode === 'demo'
+
+  const start = () => {
+    setPressed(true)
+    void onSignIn().finally(() => {
+      setPressed(false)
+    })
+  }
+
+  /*
+   * The corner variant. A bare mark with no text is weak affordance, so the
+   * accessible name is carried by aria-label and the native title tooltip
+   * rather than left to the logo — and in demo mode there is no Google logo to
+   * lean on at all, because nothing about that session involves Google, so it
+   * falls back to the word.
+   */
+  if (variant === 'icon') {
+    const name = demo ? 'Look around with sample journeys' : 'Sign in with Google'
+    return (
+      <button
+        type="button"
+        disabled={busy}
+        onClick={start}
+        aria-label={name}
+        title={name}
+        className={`flex min-h-11 items-center justify-center gap-2 rounded-sm border border-line
+                    bg-surface/90 backdrop-blur-sm transition-colors duration-150
+                    hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60
+                    ${demo ? 'px-3' : 'size-11'}`}
+      >
+        {demo ? (
+          <span className="text-label font-semibold tracking-label text-ink-soft uppercase">Sign in</span>
+        ) : (
+          <GoogleG />
+        )}
+      </button>
+    )
+  }
 
   const label = demo
     ? 'Look around with sample journeys'
@@ -43,12 +93,7 @@ export function SignInButton({ mode, onSignIn, redirecting }: Props) {
       <button
         type="button"
         disabled={busy}
-        onClick={() => {
-          setPressed(true)
-          void onSignIn().finally(() => {
-            setPressed(false)
-          })
-        }}
+        onClick={start}
         className="flex min-h-11 items-center justify-center gap-3 rounded-sm border border-line-strong
                    w-full bg-surface-2 px-5 py-2.5 font-semibold text-ink
                    transition-[background-color,border-color] duration-150

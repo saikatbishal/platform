@@ -28,7 +28,7 @@ interface Props {
  *
  * Routing here skips the exact-train stop list `IndiaMap` uses (no
  * `useTrainStops` instance of its own) — the same simplification
- * `PassportCard` already makes. A shortest-path label instead of an exact
+ * `RailPass` already makes. A shortest-path label instead of an exact
  * one costs nothing a reader of this list would notice.
  */
 export function JourneysSheet({ journeys, initialJourneyId, data, onClose, onShowOnMap, onRemove, readOnly = false }: Props) {
