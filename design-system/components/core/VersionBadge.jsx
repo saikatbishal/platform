@@ -6,7 +6,7 @@ import React from 'react'
  * accent on a 2px border, which spent the one colour that means "you have
  * travelled this" on a version number. The yellow belongs to the route.
  */
-export function VersionBadge({ name = 'Platform', version = 'v0.1' }) {
+export function VersionBadge({ name = 'Platform', version = 'v0.2' }) {
   const cell = {
     padding: '6px 10px', fontSize: 'var(--text-label)', fontWeight: 'var(--weight-semibold)',
     letterSpacing: 'var(--tracking-label)', textTransform: 'uppercase', lineHeight: 1,

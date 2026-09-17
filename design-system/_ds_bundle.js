@@ -665,7 +665,7 @@ try { (() => {
  */
 function VersionBadge({
   name = 'Platform',
-  version = 'v0.1'
+  version = 'v0.2'
 }) {
   const cell = {
     padding: '6px 10px',
@@ -1572,7 +1572,7 @@ function App() {
     }
   }, /*#__PURE__*/React.createElement(VersionBadge, {
     name: "Platform",
-    version: showingSamples ? 'Sample' : 'v0.1'
+    version: showingSamples ? 'Sample' : 'v0.2'
   })), signedIn ? /*#__PURE__*/React.createElement("div", {
     style: {
       position: 'absolute',

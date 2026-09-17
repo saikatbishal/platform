@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AuthMode } from './types.ts'
 
 interface Props {
@@ -6,13 +6,25 @@ interface Props {
   onSignIn: () => Promise<void>
   redirecting: boolean
   /**
-   * `panel` is the full-width button with its label, used where the ask has
-   * already been earned — the save prompt that appears once journeys exist.
-   * `icon` is the corner affordance for someone who has not asked for
-   * anything yet: the map is the pitch, and sign-in should be available
-   * without being the first thing on screen.
+   * `panel` is the full-width button with its label, for a context that has
+   * already earned the ask — nothing currently calls it with `panel` inside
+   * `src/`, but the branch stays: a settings screen or the future share page
+   * (docs/00-decisions.md, decision 15) is exactly the kind of place a
+   * labelled sign-in button belongs. `icon` is the corner affordance for
+   * someone who has not asked for anything yet: the map is the pitch, and
+   * sign-in should be available without being the first thing on screen.
    */
   variant?: 'panel' | 'icon'
+  /**
+   * `icon` only. True once this person has something on the device worth
+   * losing — the `mine > 0` gate App.tsx already uses elsewhere. Adds a small
+   * dot to the mark, and a tooltip that opens by itself for four seconds on
+   * mount (and again if `nudge` turns true later in the same session), then
+   * closes on its own — a nudge, not a banner: it does not wait to be
+   * dismissed, and hovering the icon reopens the same tooltip independently
+   * of that timer, at any point.
+   */
+  nudge?: boolean
 }
 
 /** Google's "G", per their brand spec — the four official colours, unaltered. */
@@ -40,7 +52,7 @@ function GoogleG() {
  * In demo mode the Google mark is gone, because nothing about that session
  * involves Google and a borrowed logo would be a lie about where your data is.
  */
-export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel' }: Props) {
+export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel', nudge = false }: Props) {
   const [pressed, setPressed] = useState(false)
   const busy = redirecting || pressed
   const demo = mode === 'demo'
@@ -53,6 +65,29 @@ export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel' }:
   }
 
   /*
+   * The tooltip's two independent ways of opening.
+   *
+   * `autoShown` fires once whenever `nudge` turns true — on mount, if this
+   * visitor already had journeys before this load, or later in the same
+   * session the moment they log their first one — and clears itself after
+   * exactly 4000ms no matter what else is happening, per the instruction
+   * that this closes itself rather than waiting for a dismissal. `hovered`
+   * is unrelated to that timer: hovering the icon shows the same tooltip for
+   * as long as the pointer stays there, on its own schedule, whether that is
+   * during the automatic 4 seconds or an hour later. `open` is just whichever
+   * of the two is currently true.
+   */
+  const [autoShown, setAutoShown] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  useEffect(() => {
+    if (!nudge) return
+    setAutoShown(true)
+    const timer = setTimeout(() => { setAutoShown(false) }, 4000)
+    return () => { clearTimeout(timer) }
+  }, [nudge])
+  const tooltipOpen = nudge && (autoShown || hovered)
+
+  /*
    * The corner variant. A bare mark with no text is weak affordance, so the
    * accessible name is carried by aria-label and the native title tooltip
    * rather than left to the logo — and in demo mode there is no Google logo to
@@ -60,15 +95,28 @@ export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel' }:
    * falls back to the word.
    */
   if (variant === 'icon') {
-    const name = demo ? 'Look around with sample journeys' : 'Sign in with Google'
+    const nudgeText = 'Sign in to save and sync across devices'
+    const name = demo
+      ? 'Look around with sample journeys'
+      : nudge
+        ? nudgeText
+        : 'Sign in with Google'
     return (
       <button
         type="button"
         disabled={busy}
         onClick={start}
+        onMouseEnter={() => { setHovered(true) }}
+        onMouseLeave={() => { setHovered(false) }}
+        onFocus={() => { setHovered(true) }}
+        onBlur={() => { setHovered(false) }}
         aria-label={name}
-        title={name}
-        className={`flex min-h-11 items-center justify-center gap-2 rounded-sm border border-line
+        // The native browser tooltip is dropped once there is a custom one to
+        // show — two overlapping tooltips on one hover reads as a bug, not two
+        // features. Screen readers still get the sentence from aria-label
+        // either way, so nothing here is accessible only visually.
+        title={nudge ? undefined : name}
+        className={`relative flex min-h-11 items-center justify-center gap-2 rounded-sm border border-line
                     bg-surface/90 backdrop-blur-sm transition-colors duration-150
                     hover:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-60
                     ${demo ? 'px-3' : 'size-11'}`}
@@ -77,6 +125,31 @@ export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel' }:
           <span className="text-label font-semibold tracking-label text-ink-soft uppercase">Sign in</span>
         ) : (
           <GoogleG />
+        )}
+        {nudge && (
+          <span
+            aria-hidden="true"
+            className="absolute top-1 right-1 size-2 rounded-full bg-board ring-2 ring-surface"
+          />
+        )}
+        {nudge && (
+          /* Decorative — the sentence itself lives in aria-label above, so a
+             screen reader already has it without this element existing.
+             pointer-events-none for the same reason the badge dot is
+             harmless: nothing here should ever be able to intercept a tap
+             meant for the map underneath, and this bubble sits low enough
+             (top-3 right-3 corner, dropping below the icon) that it never
+             overlaps the map's own controls. */
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute top-full right-0 z-10 mt-2 w-max max-w-56
+                        rounded-sm border border-line bg-surface px-2.5 py-1.5 text-left text-xs
+                        leading-relaxed text-ink-soft shadow-lg transition-[opacity,transform]
+                        duration-150
+                        ${tooltipOpen ? 'translate-y-0 opacity-100' : '-translate-y-1 opacity-0'}`}
+          >
+            {nudgeText}
+          </span>
         )}
       </button>
     )

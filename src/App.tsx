@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { IndiaMap, type IndiaMapHandle } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
-import { SAMPLE_JOURNEYS } from '@/features/journeys/sampleJourneys.ts'
 import { useJourneys } from '@/features/journeys/useJourneys.ts'
 import { AddJourneyForm } from '@/features/journeys/AddJourneyForm.tsx'
 import { useAuth } from '@/features/auth/AuthProvider.tsx'
@@ -48,21 +47,21 @@ export default function App() {
    */
   const store = useJourneys(auth.user?.id ?? null)
   /*
-   * The samples are a fallback for an empty map, not seed data written into
-   * anyone's storage. A visitor with nothing logged gets a map that shows what
-   * the app is for; the moment they log something — signed in or not — it is
-   * theirs alone. A signed-in user with nothing logged gets the real empty
-   * map, because showing them someone else's sample travel as though it were
-   * theirs is worse than showing them nothing.
-   *
    * `mine` is the honest count of this person's own journeys, and it is what
-   * gates the chrome below. Signed out is no longer the same thing as having
+   * gates the chrome below. Signed out is not the same thing as having
    * nothing: an unsigned visitor can log journeys, and they are as real as
    * anyone's.
+   *
+   * There used to be a fallback here — SAMPLE_JOURNEYS, drawn for anyone with
+   * nothing of their own — deleted along with the file. It was seed data for
+   * an empty map from the era this app was entirely behind a sign-in wall
+   * (docs/00-decisions.md, decision 11); once logging works with no account,
+   * showing someone else's trip to Vellore in place of an honest empty map
+   * has no purpose, and it is data a visitor never asked for. Zero journeys
+   * now means the map shows zero journeys.
    */
   const mine = store.journeys.length
-  const showingSamples = mine === 0 && !signedIn
-  const journeys = showingSamples ? SAMPLE_JOURNEYS : store.journeys
+  const journeys = store.journeys
   const [entryOpen, setEntryOpen] = useState(false)
   const [milestonesOpen, setMilestonesOpen] = useState(false)
   const [railPassOpen, setRailPassOpen] = useState(false)
@@ -100,23 +99,33 @@ export default function App() {
    * phone (where the +/-/Fit stack used to be) and in the bottom-left stack on
    * anything wider, above Milestones and Rail pass.
    *
-   * Thumb reach is the whole argument. On a phone held one-handed the
-   * bottom-right corner is the easiest thing on the screen to hit and the
-   * bottom-left is the hardest, and the one thing this screen wants a visitor
-   * to do should not be in the hardest corner. On a desktop the pointer makes
-   * every corner equal, so it stays grouped with the other two buttons where
-   * the grouping means something.
+   * Thumb reach is the whole argument for the placement. On a phone held
+   * one-handed the bottom-right corner is the easiest thing on the screen to
+   * hit and the bottom-left is the hardest, and the one thing this screen
+   * wants a visitor to do should not be in the hardest corner. On a desktop
+   * the pointer makes every corner equal, so it stays grouped with the other
+   * two buttons where the grouping means something.
+   *
+   * Square rather than the wide text pill Milestones and Rail pass use —
+   * shape is what marks it as the primary action instead of a third item in
+   * that row. Filled with `--board`, not `--accent`: the header comment above
+   * already states the rule ("the yellow belongs to the route"), and
+   * tokens.css documents `--board` as the one deliberate exception — paint on
+   * a real object, identical in both themes, not a palette colour. A square
+   * yellow button with a plus reads as a control on the platform, not as a
+   * route borrowing its colour.
    */
   const addJourney = (
     <button
       type="button"
       onClick={() => { setEntryOpen(true) }}
-      className="rounded-sm border border-line bg-surface px-4 py-3 text-label font-semibold tracking-label text-ink uppercase hover:bg-surface-2 hover:text-accent"
+      aria-label={mine === 0 ? 'Add your first journey' : 'Add a journey'}
+      title={mine === 0 ? 'Add your first journey' : 'Add a journey'}
+      className="flex size-10 items-center justify-center rounded-sm bg-board text-2xl leading-none
+                 font-semibold text-board-ink shadow-[0_1px_0_0_rgba(18,40,63,0.35)]
+                 transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
     >
-      {/* "your" the first time, because it is an invitation; "a" after that,
-          because it is a repeat action and "your" starts to sound like the app
-          is introducing itself again. */}
-      {mine === 0 ? '+ Add your journey' : '+ Add a journey'}
+      <span aria-hidden="true">+</span>
     </button>
   )
 
@@ -137,7 +146,7 @@ export default function App() {
       />
 
       {/* Roadmap Phase 1, item 8. This was the loudest thing on screen and it
-          said "v0.1": full-strength accent on a 2px border, spending the one
+          said "v0.2": full-strength accent on a 2px border, spending the one
           colour that means "you have travelled this" on a version number. It
           is now ink on surface with a hairline, and the radii nest properly —
           outer 2px, border 1px, inner 1px, so the inner corner is concentric
@@ -148,7 +157,7 @@ export default function App() {
           Platform
         </span>
         <span className="rounded-r-[1px] border-l border-line px-2.5 py-1.5 text-label font-semibold tracking-label text-ink-faint uppercase">
-          v0.1
+          v0.2
         </span>
       </header>
 
@@ -165,7 +174,8 @@ export default function App() {
           deciding about. The components survive in src/components/ for the
           share page; what changed is that nothing now stands between a first
           visit and the map. The ask moves to the point where it has been
-          earned: the save prompt at the bottom-left, once journeys exist. */}
+          earned — once `mine > 0` — and it lives entirely on the icon below;
+          see the comment on SignInButton's `nudge` prop for the mechanism. */}
       {!signedIn && auth.status !== 'loading' && (
         <div className="pointer-events-auto absolute top-3 right-3 flex flex-col items-end gap-1.5">
           <SignInButton
@@ -173,6 +183,7 @@ export default function App() {
             onSignIn={auth.signIn}
             redirecting={auth.status === 'redirecting'}
             variant="icon"
+            nudge={mine > 0}
           />
           {auth.error && (
             <p className="mb-0 max-w-56 rounded-sm border border-line bg-surface/90 px-2 py-1.5 text-right text-xs leading-relaxed text-vermillion backdrop-blur-sm">
@@ -182,47 +193,83 @@ export default function App() {
         </div>
       )}
 
-      {/* `bottom-16` on phones, `bottom-3` from sm up. On a phone the primary
-          action now sits at bottom-right on the same line this stack would
-          occupy, and on a 320-360px screen the totals row plus that button is
-          wider than the viewport — so the stack lifts clear of it rather than
-          relying on both staying narrow. On a wide screen nothing shares that
-          line and it sits in the corner as before.
+      {/* `bottom-3` at every width, level with the + button on a phone: the
+          collapsed row is just "Stats ▸" now, not "Kilometres — 1000", and a
+          three-word pill on the left with a 56px square on the right leaves
+          real clearance between them even at 320px. (It used to sit on
+          `bottom-16` on phones specifically to clear that button, back when
+          the collapsed label carried a value and was wide enough to reach
+          under it — no longer true once "Stats" replaced the value.)
 
           Stacked bottom-up in one flex column, not three independently
           positioned elements at fixed pixel offsets: the stats list below is
-          one row on a wide screen but up to six on a phone, and a fixed
-          `bottom-40`/`bottom-24` tuned for the short version is exactly what
-          let the tall version paint over these buttons. First DOM child sits
+          one row on a wide screen but up to six on a phone once expanded, and
+          a fixed offset tuned for the short version is exactly what would let
+          the tall version paint over these buttons. First DOM child sits
           visually lowest with `flex-col-reverse`, so stats stays first here
           and everything else stacks above however tall it turns out to be. */}
-      <div className="pointer-events-none absolute bottom-16 left-3 flex flex-col-reverse items-start gap-2 sm:bottom-3">
+      <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col-reverse items-start gap-2">
         <section
           aria-label="Your totals"
           className="flex flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex-row"
         >
-          {/* Kilometres always shows and doubles as the phone list's
-              expand/collapse control — a `<button>` rather than a `<div>` so
-              the whole row is one thumb-sized tap target, not a tiny
-              chevron. Inert at sm and up, where the card view never
-              collapses and this control would have nothing to do. */}
+          {/* The expand/collapse control on a phone, and — from sm up,
+              where the card view never collapses — the Kilometres column,
+              which is why it keeps its own markup rather than joining the
+              array below: the two screen sizes show genuinely different
+              content in this cell, not just a relabelled one. A `<button>`
+              rather than a `<div>` so the whole row is one thumb-sized tap
+              target on the phone, not a tiny chevron; inert at sm and up.
+
+              "Stats" replaces what used to be "Kilometres — <value>" here:
+              with Kilometres now just one of four rows the button reveals
+              rather than the row that stands in for all of them, showing its
+              own value on the closed button was a leftover of the old
+              layout, not something worth keeping on its own. */}
           <button
             type="button"
             onClick={() => { setStatsExpanded((e) => !e) }}
             aria-expanded={statsExpanded}
             className="pointer-events-auto flex items-baseline gap-1.5 border-b border-line px-3 py-2 text-left last:border-b-0 sm:pointer-events-none sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0"
           >
-            <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
+            <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:hidden">
+              Stats
+            </span>
+            <span className="hidden text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5 sm:inline">
               Kilometres
             </span>
-            <span className="text-ink-faint sm:hidden">–</span>
-            <span className="tabular text-sm leading-none text-cream sm:text-xl">
+            <span className="hidden tabular text-sm leading-none text-cream sm:inline sm:text-xl">
               {formatKm(stats.km).replace(' km', '')}
             </span>
             <span aria-hidden="true" className="ml-auto text-ink-faint sm:hidden">
               {statsExpanded ? '▾' : '▸'}
             </span>
           </button>
+          {/* Mobile expanded list: all four, Kilometres included — the
+              button above no longer shows its value when collapsed, so it has
+              to appear somewhere once expanded. sm:hidden unconditionally:
+              this list is never the desktop presentation, the row below is. */}
+          {([
+            ['Kilometres', formatKm(stats.km).replace(' km', '')],
+            ['Stations', stats.stations.toLocaleString('en-IN')],
+            ['States', String(stats.states)],
+            ['Longest', formatKm(stats.longestKm).replace(' km', '')],
+          ] as const).map(([label, value]) => (
+            <div
+              key={label}
+              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:hidden`}
+            >
+              <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
+                {label}
+              </span>
+              <span className="text-ink-faint">–</span>
+              <span className="tabular text-sm leading-none text-cream">{value}</span>
+            </div>
+          ))}
+          {/* Desktop row: Kilometres already has its own column via the
+              button, so only the other three repeat here — always visible,
+              never gated on statsExpanded, which does not exist as a concept
+              at this width. Unchanged from before this edit. */}
           {([
             ['Stations', stats.stations.toLocaleString('en-IN')],
             ['States', String(stats.states)],
@@ -230,12 +277,11 @@ export default function App() {
           ] as const).map(([label, value]) => (
             <div
               key={label}
-              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0`}
+              className="hidden items-baseline gap-1.5 border-line px-3 py-2 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-r sm:py-3 sm:last:border-r-0"
             >
               <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
                 {label}
               </span>
-              <span className="text-ink-faint sm:hidden">–</span>
               <span className="tabular text-sm leading-none text-cream sm:text-xl">{value}</span>
             </div>
           ))}
@@ -256,13 +302,10 @@ export default function App() {
               <span className="tabular text-sm leading-none text-oxide">{stats.uncounted}</span>
             </div>
           )}
-          {(demo || showingSamples) && (
+          {demo && (
             <div className={`${statsExpanded ? 'block' : 'hidden'} border-b border-line bg-surface-2 px-3 py-2 last:border-b-0 sm:flex sm:items-center sm:justify-center sm:border-b-0 sm:border-l sm:py-3`}>
               <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
-                {/* "Sample" only while the samples are actually what is drawn —
-                    once someone logs a journey the totals are their own, and
-                    labelling them a sample would be a lie. */}
-                {showingSamples ? 'Sample' : 'Demo'}
+                Demo
               </span>
             </div>
           )}
@@ -270,19 +313,28 @@ export default function App() {
 
         {/* Ordering here is bottom-up (flex-col-reverse, first child lowest):
             totals, then milestones and the pass, then — on sm and up only —
-            the primary action, then the save prompt. "Add your journey" sits
-            ABOVE the two secondary buttons rather than under them, because it
-            is the only thing on this screen a new visitor should feel any pull
-            toward. On a phone it is not in this stack at all; it is in the
+            the primary action. "Add your journey" sits ABOVE the two
+            secondary buttons rather than under them, because it is the only
+            thing on this screen a new visitor should feel any pull toward.
+            On a phone it is not in this stack at all; it is in the
             bottom-right corner.
+
+            There used to be a fourth thing here — a "save your journeys"
+            panel with its own full-width sign-in button, shown once
+            `mine > 0`. Removed: it never closed itself, so it sat on screen
+            for as long as someone stayed signed out, which read as a banner
+            rather than a nudge. The ask for a returning visitor now lives
+            entirely on the icon in the top-right corner — a small dot plus a
+            tooltip that opens itself briefly and closes on its own; see the
+            `nudge` prop on SignInButton.
 
             What gates these is `mine`, not `signedIn`. An unsigned visitor can
             log journeys now, and the moment they have one the milestones and
             the pass are about their travel, so they appear. At zero they stay
-            hidden: milestones would be counting progress against somebody
-            else's sample journeys, and the pass would hand out a shareable
-            card reading 0 km / 0 stations / 0 states, which looks broken
-            rather than empty. */}
+            hidden: there is nothing to open — milestones would show every
+            milestone locked, and the pass would hand out a shareable card
+            reading 0 km / 0 stations / 0 states, which looks broken rather
+            than empty. */}
         {mine > 0 && (
           <div className="pointer-events-auto flex gap-2">
             <button
@@ -309,27 +361,6 @@ export default function App() {
             the label and the handler cannot drift apart. */}
         <div className="pointer-events-auto hidden sm:block">{addJourney}</div>
 
-        {/* The ask, at the only moment it is honest: there is something on this
-            device worth losing. It states the count rather than saying "don't
-            lose your data", because the number is the argument. */}
-        {!signedIn && auth.status !== 'loading' && mine > 0 && (
-          <section
-            aria-label="Save your journeys"
-            className="pointer-events-auto max-w-72 rounded-sm border border-line bg-surface p-3"
-          >
-            <p className="mt-0 mb-2.5 text-sm leading-relaxed text-ink-soft">
-              {mine === 1
-                ? 'One journey, saved in this browser only.'
-                : `${mine.toLocaleString('en-IN')} journeys, saved in this browser only.`}{' '}
-              Sign in and they follow you to any device.
-            </p>
-            <SignInButton
-              mode={auth.mode}
-              onSignIn={auth.signIn}
-              redirecting={auth.status === 'redirecting'}
-            />
-          </section>
-        )}
       </div>
 
       {/* Phones only. Same element as the one in the stack above; see
@@ -375,7 +406,6 @@ export default function App() {
             mapRef.current?.flyToJourney(journeyId)
           }}
           onRemove={(journeyId) => { store.remove(journeyId) }}
-          readOnly={showingSamples}
         />
       )}
 
