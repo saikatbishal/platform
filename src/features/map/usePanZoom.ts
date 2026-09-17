@@ -107,16 +107,29 @@ export function usePanZoom(
         }
         if (t >= 1) flyAnim.current = null
         dirty.current = true
-      } else if (!dragging.current && (Math.abs(v.x) > 0.04 || Math.abs(v.y) > 0.04)) {
+      } else if (!dragging.current && (Math.abs(v.x) > 0.08 || Math.abs(v.y) > 0.08)) {
         view.current.x += v.x
         view.current.y += v.y
         const bx = view.current.x, by = view.current.y
         clamp()
         if (view.current.x !== bx) v.x = 0
         if (view.current.y !== by) v.y = 0
-        // 0.94 per frame is the decay that reads as "native" rather than icy.
-        v.x *= 0.94
-        v.y *= 0.94
+        /*
+         * 0.90 per frame, tuned down from 0.94 — a phone bug, not a desktop
+         * one: at 0.94 with the release multiplier below at its old 1.6, a
+         * brisk real flick (≈10px of average per-frame drag in the last 90ms,
+         * a plausible fast swipe, not an extreme one) coasted roughly 265px
+         * over about 1.6 SECONDS after the finger lifted — worked out with a
+         * geometric-series simulation of this exact decay loop, not eyeballed.
+         * That is most of a phone's screen width, which is exactly "I was
+         * looking at Madhya Pradesh and it slid to Gujarat." At 0.90 paired
+         * with 1.15 below, the same flick now coasts roughly 115px over
+         * ~900ms: momentum is still there — this does not snap dead the
+         * instant a finger lifts — it just can no longer travel a state or
+         * two past where the finger let go.
+         */
+        v.x *= 0.90
+        v.y *= 0.90
         dirty.current = true
       }
       if (dirty.current) {
@@ -186,7 +199,10 @@ export function usePanZoom(
         const now = performance.now()
         let sx = 0, sy = 0, n = 0
         for (const h of history.current) if (now - h.t < 90) { sx += h.dx; sy += h.dy; n++ }
-        if (n > 1) velocity.current = { x: (sx / n) * 1.6, y: (sy / n) * 1.6 }
+        // 1.15, not the 1.6 this used to be — see the decay comment above
+        // in the animation loop for the measured coast-distance reasoning;
+        // the two constants were tuned together, not independently.
+        if (n > 1) velocity.current = { x: (sx / n) * 1.15, y: (sy / n) * 1.15 }
         history.current = []
       }
 

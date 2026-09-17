@@ -65,6 +65,27 @@ export function SignInButton({ mode, onSignIn, redirecting, variant = 'panel', n
   }
 
   /*
+   * `pressed` has the same bfcache bug `useAuth.ts` fixes for `redirecting`,
+   * and fixing only that one is not enough — `busy` is `redirecting ||
+   * pressed`, so a `pressed` stuck at `true` disables this button on its own.
+   * It gets stuck the same way: click, land on Google, hit the browser's Back
+   * button instead of cancelling, and most browsers restore this exact
+   * component instance from the back/forward cache rather than remounting it
+   * — so the `.finally()` above never runs, because the `onSignIn()` promise
+   * it was chained to never settles; the request it was waiting on died with
+   * the navigation away. `pageshow` with `event.persisted` is the signal that
+   * restore happened; clearing `pressed` there is the direct fix, independent
+   * of whatever useAuth.ts's own listener does for `redirecting`.
+   */
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setPressed(false)
+    }
+    window.addEventListener('pageshow', onPageShow)
+    return () => { window.removeEventListener('pageshow', onPageShow) }
+  }, [])
+
+  /*
    * The tooltip's two independent ways of opening.
    *
    * `autoShown` fires once whenever `nudge` turns true — on mount, if this

@@ -87,8 +87,13 @@ export function useAuthState(): AuthState {
       clearRedirectError()
     }
 
+    // Narrowed once, here, and closed over below — `supabase` itself is a
+    // module-level `const`, but TypeScript does not carry the `if (!supabase)`
+    // guard's narrowing into a closure defined later in this same function, so
+    // `onPageShow` needs its own non-null reference to call through.
+    const client = supabase
     let cancelled = false
-    void supabase.auth.getSession().then(({ data }) => {
+    void client.auth.getSession().then(({ data }) => {
       if (cancelled) return
       if (data.session?.user) {
         setUser(toUser(data.session.user))
@@ -100,7 +105,7 @@ export function useAuthState(): AuthState {
 
     // Fires on sign-in (including the return from Google), sign-out, and token
     // refresh — the single subscription that keeps the UI truthful.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = client.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(toUser(session.user))
         setStatus('signed-in')
@@ -111,9 +116,42 @@ export function useAuthState(): AuthState {
       }
     })
 
+    /*
+     * The bug this fixes: click Sign in, land on Google's account chooser,
+     * hit the browser's own Back button instead of Google's cancel link.
+     * `signIn()` already set `status` to `'redirecting'` before the browser
+     * navigated away, and most browsers restore the page that was mid-OAuth
+     * from the back/forward cache rather than reloading it — so none of the
+     * code above reruns, the pending `signInWithOAuth()` promise this page
+     * was `await`ing never settles because the request it was watching died
+     * with the navigation, and `status` is stuck on `'redirecting'` forever.
+     * The icon reads that as busy and stays disabled, indistinguishable from
+     * broken.
+     *
+     * `pageshow` with `event.persisted` is the signal a bfcache restore
+     * happened. When it fires, ask Supabase directly rather than trusting
+     * whatever `status` currently says — the same call the effect above
+     * makes on a real load, because a bfcache restore is exactly the "did
+     * this session actually happen while I was away" question that call
+     * already answers.
+     */
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+      void client.auth.getSession().then(({ data }) => {
+        if (data.session?.user) {
+          setUser(toUser(data.session.user))
+          setStatus('signed-in')
+        } else {
+          setStatus('signed-out')
+        }
+      })
+    }
+    window.addEventListener('pageshow', onPageShow)
+
     return () => {
       cancelled = true
       sub.subscription.unsubscribe()
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [])
 
