@@ -22,6 +22,17 @@ export interface StationHit {
   state: string
   /** Trains calling here — shown as a subtitle cue, and the tie-breaker. */
   trains: number
+  /**
+   * Another station in a *different* state goes by the same name once the
+   * suffixes are stripped — Bilaspur Jn (Chhattisgarh) and Bilaspur Road
+   * (Uttar Pradesh). The state is then the only thing telling them apart, so
+   * the picker stops printing it as a faint afterthought.
+   *
+   * Measured on the generated stations.json: 39 such groups. A wrong pick
+   * among them fails silently — the journey routes, draws and counts, just
+   * hundreds of kilometres from where it happened.
+   */
+  twin: boolean
 }
 
 /**
@@ -61,6 +72,14 @@ type Tier = (typeof Tier)[keyof typeof Tier]
 const fold = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
 /**
+ * A name with the words that only say what *kind* of stop it is taken off, so
+ * "Bilaspur Jn" and "Bilaspur Road" compare equal. "New" and "Central" stay:
+ * New Delhi and Delhi are different places to the person typing.
+ */
+const SUFFIX = /\b(?:jn|junction|road|rd|halt|h|cantt|cantonment|city|town)\b/g
+const core = (folded: string) => folded.replace(SUFFIX, ' ').replace(/\s+/g, ' ').trim()
+
+/**
  * Prepared once per station list, not per keystroke — `fold` over 8,696 names
  * on every character typed is the difference between instant and laggy.
  */
@@ -71,19 +90,60 @@ export interface SearchIndex {
     name: string
     /** Start offset of each word in `name`, for the word-prefix test. */
     starts: readonly number[]
+    /** See `StationHit.twin`. */
+    twin: boolean
   }>
+  /** Every station's state, by code — how a journey's endpoints become the
+      user's states without another pass over the list. */
+  readonly stateOf: ReadonlyMap<string, string>
 }
 
 export function buildSearchIndex(stations: readonly Station[]): SearchIndex {
+  // Which states each core name occurs in. A name shared only within one
+  // state (Ahmedabad Jn / Ahmedabad Cantt, both Gujarat) is not a twin: the
+  // state cannot tell those apart, the code can, and the code is already
+  // printed first on every row.
+  const statesByCore = new Map<string, Set<string>>()
+  const folded = stations.map((station) => {
+    const name = fold(station.name)
+    const c = core(name)
+    let set = statesByCore.get(c)
+    if (!set) statesByCore.set(c, (set = new Set()))
+    set.add(station.state)
+    return { station, name, c }
+  })
+
   return {
-    rows: stations.map((station) => {
-      const name = fold(station.name)
+    rows: folded.map(({ station, name, c }) => {
       const starts: number[] = name.length > 0 ? [0] : []
       for (let i = 1; i < name.length; i++) if (name[i - 1] === ' ') starts.push(i)
-      return { station, code: station.code.toLowerCase(), name, starts }
+      const twin = c.length > 0 && (statesByCore.get(c)?.size ?? 0) > 1
+      return { station, code: station.code.toLowerCase(), name, starts, twin }
     }),
+    stateOf: new Map(stations.map((s) => [s.code, s.state])),
   }
 }
+
+/**
+ * How much a station in one of your own states outweighs one elsewhere, when
+ * both matched the query equally well.
+ *
+ * Multiplied into the train count rather than stacked above it as its own
+ * tier, and that is the whole design. As a tier, a two-train halt in West
+ * Bengal would beat New Delhi for anyone who has ever boarded at Howrah —
+ * "del" would stop meaning Delhi. As a factor it only decides between
+ * stations of comparable weight, which is exactly the "Rampur" case: several
+ * similar stations, and the one in the state you travel from is the one you
+ * meant.
+ *
+ * Why 3 and not more, measured (research.md §2): at 4, a West Bengal traveller
+ * typing "kan" pushes Kanpur Central (298 trains) below a 74-train halt, and a
+ * UP traveller typing "pat" loses Patna to fourth place. At 3 both stay in the
+ * top three, while "rampur" still answers Rampurhat for Bengal and Rampur for
+ * UP, and "bilaspur" still puts Chhattisgarh's halts above Bilaspur Road for
+ * someone who travels there.
+ */
+export const HOME_STATE_BOOST = 3
 
 function tierFor(row: SearchIndex['rows'][number], q: string): Tier {
   if (row.code === q) return Tier.CodeExact
@@ -97,15 +157,22 @@ export function searchStations(
   index: SearchIndex,
   rank: Readonly<Record<string, number>> | null,
   limit = 8,
+  /** States the user has started or ended a journey in. Empty for someone
+      with no journeys yet, which leaves the ranking exactly as it was. */
+  homeStates: ReadonlySet<string> = new Set(),
 ): StationHit[] {
   const q = fold(query)
   if (q.length === 0) return []
 
-  const scored: Array<{ row: SearchIndex['rows'][number]; tier: Tier; trains: number }> = []
+  const scored: Array<{ row: SearchIndex['rows'][number]; tier: Tier; trains: number; weight: number }> = []
   for (const row of index.rows) {
     const tier = tierFor(row, q)
     if (tier === Tier.None) continue
-    scored.push({ row, tier, trains: rank?.[row.station.code] ?? 0 })
+    const trains = rank?.[row.station.code] ?? 0
+    // +1 so the boost still separates stations before the rank file lands,
+    // when every count reads 0 and a factor on 0 would do nothing.
+    const weight = (trains + 1) * (homeStates.has(row.station.state) ? HOME_STATE_BOOST : 1)
+    scored.push({ row, tier, trains, weight })
   }
 
   scored.sort((a, b) =>
@@ -113,7 +180,7 @@ export function searchStations(
     // wants that station even if it is a halt, and no amount of traffic
     // should let a substring match jump a code match.
     b.tier - a.tier ||
-    b.trains - a.trains ||
+    b.weight - a.weight ||
     // Shorter name last, so "Delhi" beats "Delhi Safdarjung" at equal traffic.
     a.row.name.length - b.row.name.length ||
     a.row.station.code.localeCompare(b.row.station.code),
@@ -124,5 +191,6 @@ export function searchStations(
     name: row.station.name,
     state: row.station.state,
     trains,
+    twin: row.twin,
   }))
 }

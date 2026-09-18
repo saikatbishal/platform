@@ -4,7 +4,7 @@ import { useStationSearch } from './useStationSearch.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
 import { useTrainTimes } from './useTrainTimes.ts'
 import type { StationHit } from './searchStations.ts'
-import type { JourneyDraft, Station } from '@/types/index.ts'
+import type { Journey, JourneyDraft, Station } from '@/types/index.ts'
 
 /**
  * Log a journey. Structure and behaviour only — the visual pass comes later,
@@ -18,6 +18,8 @@ import type { JourneyDraft, Station } from '@/types/index.ts'
  */
 interface Props {
   stations: readonly Station[] | undefined
+  /** The user's journeys so far — station search ranks their states up. */
+  journeys?: readonly Journey[]
   onAdd: (draft: JourneyDraft) => void
   onClose: () => void
 }
@@ -172,7 +174,9 @@ function StationField({
           <span className="min-w-0">
             <span className="tabular mr-2 text-sm text-accent">{value.code}</span>
             <span className="text-ink">{value.name}</span>
-            <span className="ml-2 text-sm text-ink-faint">{value.state}</span>
+            <span className={`ml-2 text-sm ${value.twin ? 'font-semibold text-ink-soft' : 'text-ink-faint'}`}>
+              {value.state}
+            </span>
           </span>
           <button
             type="button"
@@ -249,7 +253,15 @@ function StationField({
               >
                 <span className="tabular w-14 shrink-0 text-sm text-accent">{h.code}</span>
                 <span className="min-w-0 flex-1 truncate text-ink">{h.name}</span>
-                <span className="shrink-0 text-sm text-ink-faint">{h.state}</span>
+                {/* A twin's state is the only thing telling it from a
+                    same-named station elsewhere — Bilaspur Jn and Bilaspur
+                    Road are 600 km apart — so it steps up from label-faint
+                    to readable, and to the weight of the name beside it.
+                    Every other row keeps it quiet: 8,623 of 8,696 stations
+                    don't need it read. */}
+                <span className={`shrink-0 text-sm ${h.twin ? 'font-semibold text-ink-soft' : 'text-ink-faint'}`}>
+                  {h.state}
+                </span>
               </button>
             </li>
           ))}
@@ -259,8 +271,8 @@ function StationField({
   )
 }
 
-export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
-  const { search } = useStationSearch(stations)
+export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
+  const { search } = useStationSearch(stations, journeys)
   const { request, between, loading } = useTrainsBetween()
   const { request: requestTimes, legFor } = useTrainTimes()
 

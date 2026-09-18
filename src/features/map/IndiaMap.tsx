@@ -127,6 +127,22 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
   const journeyById = useMemo(() => new Map(journeys.map((j) => [j.id, j])), [journeys])
 
   /**
+   * The journey travelled most recently — by the date it happened, not the
+   * order it was logged in. Someone back-filling last year's trips logs them
+   * after this week's, and the map must not decide they are "here" because
+   * of it. On a tie (two legs on one day) the one logged later wins, which is
+   * the only order a same-day pair has.
+   *
+   * One definition shared by the three things that mean "latest": the lit
+   * route, the you-are-here dot, and the destination state.
+   */
+  const latestJourney = useMemo(() => {
+    let best: Journey | null = null
+    for (const j of journeys) if (!best || j.travelledOn >= best.travelledOn) best = j
+    return best
+  }, [journeys])
+
+  /**
    * Routes, oldest first, so the most recently travelled one draws — and
    * therefore hit-tests — last. Where two journeys share a stretch of track,
    * that is what puts the newer one on top without this file ever having to
@@ -136,12 +152,28 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
    */
   const routesForDisplay = useMemo(
     () => [...routes].sort((a, b) => {
+      // The latest paints last whatever its date ties with — it is the one
+      // drawn lit, and a lit line under an unlit one is not lit.
+      if (a.id === latestJourney?.id) return 1
+      if (b.id === latestJourney?.id) return -1
       const da = journeyById.get(a.id)?.travelledOn ?? ''
       const db = journeyById.get(b.id)?.travelledOn ?? ''
       return da < db ? -1 : da > db ? 1 : 0
     }),
-    [routes, journeyById],
+    [routes, journeyById, latestJourney],
   )
+
+  /**
+   * Where the latest journey ended, as a state. Read from the destination
+   * station, not from the route, so a journey the graph could not draw still
+   * lights the state it arrived in — per "never silently drop a journey",
+   * the arrival happened even if the line didn't.
+   */
+  const destinationStateShape = useMemo(() => {
+    if (!data || !latestJourney) return null
+    const state = data.byCode.get(latestJourney.toCode)?.state
+    return state ? data.states.find((s) => s.name === state) ?? null : null
+  }, [data, latestJourney])
 
   /** The journey whose route is under the cursor or was last tapped, and
       where to draw its tooltip. Hover live-follows the mouse; a tap (or a
@@ -214,14 +246,20 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
       string,
       { x: number; y: number; name: string; last: boolean; unroutable: boolean }
     >()
-    journeys.forEach((j, i) => {
-      for (const [code, last] of [[j.fromCode, false], [j.toCode, i === journeys.length - 1]] as const) {
+    for (const j of journeys) {
+      for (const code of [j.fromCode, j.toCode]) {
         const s = data.byCode.get(code)
-        if (s) seen.set(code, { x: s.x, y: s.y, name: s.name, last, unroutable: unroutableCodes.has(code) })
+        if (s) seen.set(code, { x: s.x, y: s.y, name: s.name, last: false, unroutable: unroutableCodes.has(code) })
       }
-    })
+    }
+    // Marked after the loop, not inside it: a later journey passing back
+    // through the same station would otherwise overwrite the flag. This used
+    // to be "the last journey in the array", which is logging order — a
+    // back-filled trip from last year moved you-are-here to where it ended.
+    const here = latestJourney ? seen.get(latestJourney.toCode) : undefined
+    if (here) here.last = true
     return [...seen.values()]
-  }, [data, journeys, unroutableCodes])
+  }, [data, journeys, unroutableCodes, latestJourney])
 
   useEffect(() => {
     if (!data || !onStats) return
@@ -601,6 +639,24 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
             />
           ))}
 
+          {/* Where the latest journey ended. An outline in the route's own
+              halo colour plus the faintest wash of it — the same light the
+              latest line is lit with, spilling onto the state it arrived in,
+              so the two read as one event. Not the accent: that is the tap
+              selection, drawn next and on top, and a state can be both. Not
+              vermillion: that is the you-are-here dot inside this state, and
+              two red things make neither urgent. Ambient rather than a
+              selection, so it takes no pointer events and never competes
+              with a tap. */}
+          {destinationStateShape && (
+            <path
+              d={destinationStateShape.d}
+              fillOpacity={0.08}
+              strokeOpacity={0.7}
+              className="fill-route-halo stroke-route-halo [stroke-width:1.4px] [vector-effect:non-scaling-stroke] [pointer-events:none]"
+            />
+          )}
+
           {/* The selected state: a wash laid over the fill that is already
               there, not a fill of its own. A state you have travelled through
               has to still read as travelled while it is selected — that
@@ -687,10 +743,18 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
                 recently travelled journey the one that responds where two
                 overlap: it paints last, on top, so it is what the pointer
                 hits. */}
+            {/* The latest journey is lit: the halo is the route's only
+                source of visibility (the line itself is black), so turning
+                the halo up is what "highlighted" means in this system — a
+                wider, brighter glow, not a new colour. Wider also makes it the
+                easiest line to hit with a thumb, which suits the journey most
+                likely to be the one tapped. */}
             {routesForDisplay.map((r) => (
               <path key={`halo-${r.id}`} d={r.d} fill="none"
-                className="stroke-route-halo opacity-15 [vector-effect:non-scaling-stroke] [pointer-events:stroke]"
-                strokeWidth={9} strokeLinecap="round" strokeLinejoin="round"
+                className={`stroke-route-halo [vector-effect:non-scaling-stroke] [pointer-events:stroke] ${
+                  r.id === latestJourney?.id ? 'opacity-40' : 'opacity-15'
+                }`}
+                strokeWidth={r.id === latestJourney?.id ? 12 : 9} strokeLinecap="round" strokeLinejoin="round"
                 onPointerEnter={(e) => {
                   if (e.pointerType !== 'mouse') return
                   setActiveJourneyId(r.id)
@@ -734,8 +798,11 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
                 className={`stroke-route-taken [vector-effect:non-scaling-stroke]${
                   r.exact ? '' : ' [stroke-dasharray:9_5]'
                 }`}
-                strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round">
-                <title>{r.exact ? 'Route as the train runs it' : 'Shortest path — no train recorded'}</title>
+                strokeWidth={r.id === latestJourney?.id ? 3 : 2.4} strokeLinecap="round" strokeLinejoin="round">
+                <title>
+                  {r.id === latestJourney?.id ? 'Your latest journey. ' : ''}
+                  {r.exact ? 'Route as the train runs it' : 'Shortest path — no train recorded'}
+                </title>
               </path>
             ))}
             {/* An unroutable endpoint keeps its position and its colour — the
