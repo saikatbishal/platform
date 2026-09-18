@@ -65,6 +65,15 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
   const pressStart = useRef<
     { kind: 'route'; journeyId: string; x: number; y: number }
     | { kind: 'tooltip'; x: number; y: number }
+    | { kind: 'state'; name: string; x: number; y: number }
+    /* A zoom control. Recorded for the same reason as everything else here:
+       `stopPropagation` on these buttons cannot stop the stage resolving the
+       release, because usePanZoom's listener is a native one on the stage and
+       runs before React's synthetic dispatch ever reaches the button — the
+       pointer is already captured, so the release is delivered to the stage
+       whatever the button says. Without this, zooming in for a closer look at
+       the state you just tapped read as "pressed nothing" and put it out. */
+    | { kind: 'control' }
     | null
   >(null)
   /* Kept here rather than lifted to App like `data` was: that lift existed to
@@ -140,6 +149,19 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
       onClick below, which clears this when the tap lands on empty map. */
   const [activeJourneyId, setActiveJourneyId] = useState<string | null>(null)
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null)
+  /** The state whose name is showing. One selection at a time, shared with
+      the route tooltip: two things lit up at once are two answers to the
+      question "what did I just tap". */
+  const [activeState, setActiveState] = useState<string | null>(null)
+  const activeStateShape = useMemo(
+    () => (activeState && data ? data.states.find((s) => s.name === activeState) ?? null : null),
+    [activeState, data],
+  )
+  const stateLabel = useRef<SVGTextElement>(null)
+  /* The zoom the last frame drew at. A state selected without panning gets no
+     frame of its own, so the label reads this to come out at the right size on
+     its first paint rather than one frame later. */
+  const viewK = useRef(1)
 
   useEffect(() => {
     if (!activeJourneyId) return
@@ -257,6 +279,13 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
 
     const width = el.clientWidth, height = el.clientHeight
     const inverse = 1 / view.k
+    // Two different jobs, one line apart. The setAttribute is the endpoint
+    // labels' own trick — the group is positioned in map space so it travels
+    // with the land, the text is scaled back so it stays the size it was
+    // written at. The line above it is only ever read by the *first* paint of
+    // a label that appears without a pan, which gets no frame of its own.
+    viewK.current = view.k
+    stateLabel.current?.setAttribute('transform', `scale(${inverse})`)
 
     // One collision pass for every label — cities/endpoints first, so a
     // station never displaces one of them from a shared spot.
@@ -398,7 +427,17 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
       onPointerUp={(e) => {
         const press = pressStart.current
         pressStart.current = null
+        if (press?.kind === 'control') return
         if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) <= 6) {
+          if (press.kind === 'state') {
+            // Tapping the lit state again puts it out. Nothing else does —
+            // there is no Escape convention anywhere on this map, and a
+            // selection you cannot dismiss by tapping it is a trap.
+            setActiveJourneyId(null)
+            setActiveState((cur) => (cur === press.name ? null : press.name))
+            return
+          }
+          setActiveState(null)
           if (press.kind === 'tooltip') {
             if (activeJourneyId) {
               setActiveJourneyId(null)
@@ -418,6 +457,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
           return
         }
         setActiveJourneyId(null)
+        setActiveState(null)
       }}
       className={`absolute inset-0 touch-none bg-sea [cursor:grab] active:[cursor:grabbing]${seaStill ? ' sea-paused' : ''}`}
     >
@@ -538,6 +578,14 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
             <path
               key={s.name}
               d={s.d}
+              /* Down only, resolved by the stage's own pointerup — the same
+                 reason the route halos do it this way, spelled out in full
+                 at their `onPointerDown`: usePanZoom captures the pointer on
+                 every press in the stage, so this element never sees its own
+                 release and `onClick` never fires where the press began. */
+              onPointerDown={(e) => {
+                pressStart.current = { kind: 'state', name: s.name, x: e.clientX, y: e.clientY }
+              }}
               /* Both widths come from the class, and the `strokeWidth`
                  attribute is deliberately gone. A CSS rule always beats an
                  SVG presentation attribute — cascade layers do not enter
@@ -552,6 +600,22 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
               }
             />
           ))}
+
+          {/* The selected state: a wash laid over the fill that is already
+              there, not a fill of its own. A state you have travelled through
+              has to still read as travelled while it is selected — that
+              distinction is the map's single biggest reward, and a selection
+              is a passing thing that should not cost it. Accent is a fill in
+              this palette, which is exactly what it is being used as here.
+              Drawn before the district hairlines so those stay visible
+              through it. */}
+          {activeStateShape && (
+            <path
+              d={activeStateShape.d}
+              fillOpacity={0.14}
+              className="fill-accent stroke-accent [stroke-width:1.8px] [vector-effect:non-scaling-stroke] [pointer-events:none]"
+            />
+          )}
 
           {/* District borders. Drawn after the states so they sit on the
               opaque land fill rather than under it, and kept fainter and
@@ -716,6 +780,28 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
               )
             })}
           </g>
+
+          {/* The selected state's name, written on the state. Last in the
+              overlay, so it clears the 8,696-dot field and every route — and
+              it carries the same ground-coloured halo the station names use,
+              because a name set straight onto that texture is unreadable.
+              Uppercase at the label size with label tracking is the system's
+              one rule for a name that is a label rather than a sentence. */}
+          {activeStateShape?.labelAt && (
+            <g transform={`translate(${activeStateShape.labelAt[0]},${activeStateShape.labelAt[1]})`}>
+              <text
+                ref={stateLabel}
+                transform={`scale(${1 / viewK.current})`}
+                textAnchor="middle"
+                fontSize={11}
+                fontWeight={600}
+                letterSpacing="0.14em"
+                className="fill-ink uppercase [paint-order:stroke] stroke-ground [stroke-width:3px] [stroke-linejoin:round]"
+              >
+                {activeStateShape.name}
+              </text>
+            </g>
+          )}
         </g>
       </svg>
 
@@ -734,11 +820,11 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
           them: they were instrumentation from chasing the zoom jank, and they
           were still firing in production builds. */}
       <div className="pointer-events-auto absolute right-3 bottom-3 hidden flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex">
-        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); animatedZoomBy(1.6) }} aria-label="Zoom in"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); pressStart.current = { kind: 'control' }; animatedZoomBy(1.6) }} aria-label="Zoom in"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">+</button>
-        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); animatedZoomBy(1 / 1.6) }} aria-label="Zoom out"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); pressStart.current = { kind: 'control' }; animatedZoomBy(1 / 1.6) }} aria-label="Zoom out"
           className="h-10 w-10 border-b border-line text-ink-soft hover:bg-surface-2 hover:text-accent">−</button>
-        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); animatedReset() }} aria-label="Fit the whole country"
+        <button type="button" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); pressStart.current = { kind: 'control' }; animatedReset() }} aria-label="Fit the whole country"
           className="h-10 w-10 border-b border-line text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent">Fit</button>
       </div>
 
