@@ -1,4 +1,5 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent, RefObject } from 'react'
 import { useStationSearch } from './useStationSearch.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
 import { useTrainTimes } from './useTrainTimes.ts'
@@ -37,23 +38,113 @@ function daysAgo(back: number): string {
 const today = () => daysAgo(0)
 
 function StationField({
-  label, value, onPick, search, exclude,
+  label, value, onPick, search, exclude, inputRef, onPicked,
 }: {
   label: string
   value: StationHit | null
   onPick: (hit: StationHit | null) => void
   search: (q: string, limit?: number) => StationHit[]
   exclude?: string | undefined
+  /** This field's own input, so the field before it can hand focus over. */
+  inputRef?: RefObject<HTMLInputElement | null> | undefined
+  /** Fired on a keyboard pick only — see the call site for why not on a tap. */
+  onPicked?: (() => void) | undefined
 }) {
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
   const hits = useMemo(
     () => (open && query ? search(query, 6).filter((h) => h.code !== exclude) : []),
     [open, query, search, exclude],
   )
 
+  /*
+   * One expression decides three things — whether the list is drawn, what
+   * `aria-expanded` claims, and whether a key press belongs to the list or to
+   * the form behind it. Keeping them derived from the same value is what stops
+   * Escape closing the sheet while a list the user can see is still open.
+   */
+  const expanded = hits.length > 0
+  // `exclude` changes when the other field is picked, which can shorten the
+  // list under an index that was valid a render ago.
+  const activeIndex = expanded ? Math.min(active, hits.length - 1) : -1
+
   const inputId = useId()
   const listId = useId()
+  const optionId = (i: number) => `${listId}-opt-${i}`
+
+  const ownRef = useRef<HTMLInputElement>(null)
+  const ref = inputRef ?? ownRef
+  const listRef = useRef<HTMLUListElement>(null)
+
+  // Six results are taller than the list's 240px, so the sixth is reached by
+  // keyboard before it is reachable by eye. No `behavior` — the instant scroll
+  // is the one `prefers-reduced-motion` would have asked for anyway.
+  useEffect(() => {
+    if (activeIndex < 0) return
+    listRef.current?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
+
+  /*
+   * Both halves of this field replace the other in the DOM, and whichever one
+   * was being used is the one that disappears. Left alone, focus lands on
+   * <body> and the next Tab restarts from the top of the document.
+   *
+   * Picking swaps the input for the row, so focus follows to "Change" — but
+   * only if it was orphaned, which is exactly the pointer case; a keyboard
+   * pick has already moved focus on to the next field and must keep it.
+   * Pressing "Change" swaps back, so focus follows to the input.
+   */
+  const changeRef = useRef<HTMLButtonElement>(null)
+  const hadValue = useRef(false)
+  useEffect(() => {
+    if (hadValue.current && !value) ref.current?.focus()
+    else if (!hadValue.current && value && document.activeElement === document.body) {
+      changeRef.current?.focus()
+    }
+    hadValue.current = value !== null
+  }, [value, ref])
+
+  const choose = (hit: StationHit, byKeyboard: boolean) => {
+    onPick(hit)
+    setOpen(false)
+    setQuery('')
+    setActive(0)
+    if (byKeyboard) onPicked?.()
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      // Only swallow the key if there is something on screen to close;
+      // otherwise it belongs to the sheet.
+      if (!expanded) return
+      e.stopPropagation()
+      setOpen(false)
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      // Otherwise the caret jumps to the end of the query instead.
+      e.preventDefault()
+      if (!expanded) { setOpen(true); return }
+      // Wraps both ways: the end of a six-row list is not a wall.
+      setActive(
+        e.key === 'ArrowDown'
+          ? (activeIndex + 1) % hits.length
+          : (activeIndex - 1 + hits.length) % hits.length,
+      )
+      return
+    }
+    if (e.key === 'Enter' && expanded) {
+      /* The Enter that picks a station is not the Enter that logs the
+         journey. Without this, implicit form submission fires on the same
+         key press — the form is only saved from logging a half-filled
+         journey by the `ready` guard, which is luck, not design. */
+      e.preventDefault()
+      const hit = hits[activeIndex]
+      if (hit) choose(hit, true)
+    }
+  }
 
   /*
    * A <div>, not a <label> — and that is a fix, not a preference.
@@ -85,6 +176,7 @@ function StationField({
           </span>
           <button
             type="button"
+            ref={changeRef}
             onClick={() => { onPick(null); setQuery(''); setOpen(true) }}
             className="shrink-0 text-label font-semibold tracking-label text-ink-faint uppercase hover:text-accent"
           >
@@ -94,34 +186,66 @@ function StationField({
       ) : (
         <input
           id={inputId}
+          ref={ref}
           value={query}
           role="combobox"
-          aria-expanded={hits.length > 0}
+          aria-expanded={expanded}
           aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
           spellCheck={false}
           placeholder="Station name or code"
-          onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); setActive(0) }}
           onFocus={() => { setOpen(true) }}
+          /* Tabbing to the next field must not leave a list of six stations
+             hanging over it. Safe because an option swallows its own
+             pointer-down, so a tap never blurs the input to begin with. */
+          onBlur={() => { setOpen(false) }}
+          onKeyDown={onKeyDown}
           className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
         />
       )}
 
-      {hits.length > 0 && (
-        <ul id={listId} className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-sm border border-line bg-surface">
-          {hits.map((h) => (
-            <li key={h.code}>
+      {expanded && (
+        <ul
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label={label}
+          /* Chrome makes any scrolling box a tab stop, and six results
+             overflow 240px — without this, Tab out of the field stops on the
+             list itself before reaching the next one. */
+          tabIndex={-1}
+          className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-sm border border-line bg-surface"
+        >
+          {hits.map((h, i) => (
+            <li key={h.code} role="presentation">
               <button
                 type="button"
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === activeIndex}
+                data-active={i === activeIndex}
+                /* Out of the tab order, not out of the document: Tab should
+                   leave this field for the next one, but the row stays a real
+                   button because on a phone it is the thing being tapped. */
+                tabIndex={-1}
                 /* Selection stays on click so the keyboard still works, but
                    the press is swallowed: without this the input blurs on
                    pointer-down and, on touch, the click that follows can land
                    on whatever the re-render moved under the finger. */
                 onPointerDown={(e) => { e.preventDefault() }}
-                onClick={() => { onPick(h); setOpen(false); setQuery('') }}
-                className="flex w-full items-baseline gap-2 border-b border-line px-3 py-2.5 text-left last:border-b-0 hover:bg-surface-2"
+                /* Movement, not `mouseenter` — a row scrolled under a resting
+                   cursor by the arrow keys would otherwise steal the highlight
+                   back off the key that moved it. */
+                onPointerMove={() => { setActive(i) }}
+                onClick={() => { choose(h, false) }}
+                className={`flex w-full items-baseline gap-2 border-b border-line px-3 py-2.5 text-left last:border-b-0 ${
+                  i === activeIndex ? 'bg-surface-2' : ''
+                }`}
               >
                 <span className="tabular w-14 shrink-0 text-sm text-accent">{h.code}</span>
                 <span className="min-w-0 flex-1 truncate text-ink">{h.name}</span>
@@ -142,6 +266,11 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
 
   const [from, setFrom] = useState<StationHit | null>(null)
   const [to, setTo] = useState<StationHit | null>(null)
+  /* Picking "From" with the keyboard carries on into "To" — the fifteen-second
+     path shouldn't need a Tab in the middle of it. Deliberately not done for a
+     tap: on a phone that would throw the on-screen keyboard back up over a
+     list the thumb had just finished with. */
+  const toInputRef = useRef<HTMLInputElement>(null)
   const [train, setTrain] = useState<string>('')
   /* A train the timetable has never heard of.
      The dataset is several years old — `schema.sql` keeps `train_number` free
@@ -192,8 +321,61 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
 
   const ready = from !== null && to !== null && from.code !== to.code && travelledOn !== ''
 
+  const formRef = useRef<HTMLFormElement>(null)
+
+  /* The sheet opens over a button that stays mounted behind it, so without
+     this the first Tab walks off into the chrome the scrim is covering.
+     Focus lands on the form itself rather than the From field: a container
+     takes focus without a phone throwing its keyboard up, and Tab from there
+     falls into the first control anyway. Handing focus back on the way out is
+     the other half of the same job — Escape used to leave it on the trigger. */
+  useEffect(() => {
+    const opener = document.activeElement
+    formRef.current?.focus()
+    return () => { if (opener instanceof HTMLElement) opener.focus() }
+  }, [])
+
+  /**
+   * Everything Tab can reach in the form as it stands — recomputed per press,
+   * because the train select, the two time fields and the submit button all
+   * come and go. `tabIndex >= 0` is what keeps the station results out of it:
+   * they are real buttons, deliberately not tab stops.
+   */
+  const tabbable = () => {
+    const root = formRef.current
+    if (!root) return []
+    return [...root.querySelectorAll<HTMLElement>('input, select, button, textarea, [tabindex]')]
+      .filter((el) => el.tabIndex >= 0 && !el.matches(':disabled'))
+  }
+
+  /* Tab cycles rather than escaping: past the last control it returns to the
+     first, and Shift+Tab off the first goes to the last. A journey is logged
+     without leaving the form, so the form is where the keyboard stays. */
+  const onFormKeyDown = (e: KeyboardEvent<HTMLFormElement>) => {
+    if (e.key !== 'Tab') return
+    const list = tabbable()
+    const first = list[0]
+    const last = list[list.length - 1]
+    if (!first || !last) return
+    const at = document.activeElement
+    // `at === formRef.current` is the first press after opening, when focus is
+    // still on the container and has nowhere behind it to go.
+    if (e.shiftKey && (at === first || at === formRef.current)) {
+      e.preventDefault()
+      last.focus()
+    } else if (!e.shiftKey && at === last) {
+      e.preventDefault()
+      first.focus()
+    }
+  }
+
   return (
     <form
+      ref={formRef}
+      /* A landing spot for focus, not a control — the accent ring belongs on
+         the thing the user is actually editing. */
+      tabIndex={-1}
+      onKeyDown={onFormKeyDown}
       onSubmit={(e) => {
         e.preventDefault()
         if (!ready || !from || !to) return
@@ -208,10 +390,24 @@ export function AddJourneyForm({ stations, onAdd, onClose }: Props) {
           arrivalDayOffset,
         })
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-4 focus:outline-none"
     >
-      <StationField label="From" value={from} onPick={setFrom} search={search} exclude={to?.code} />
-      <StationField label="To" value={to} onPick={setTo} search={search} exclude={from?.code} />
+      <StationField
+        label="From"
+        value={from}
+        onPick={setFrom}
+        search={search}
+        exclude={to?.code}
+        onPicked={() => { toInputRef.current?.focus() }}
+      />
+      <StationField
+        label="To"
+        value={to}
+        onPick={setTo}
+        search={search}
+        exclude={from?.code}
+        inputRef={toInputRef}
+      />
 
       <label className="block">
         <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
