@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IndiaMap, type IndiaMapHandle } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
 import { useJourneys } from '@/features/journeys/useJourneys.ts'
@@ -74,6 +74,16 @@ export default function App() {
    */
   const [routeTarget, setRouteTarget] = useState<{ initialJourneyId: string; fromCode: string; toCode: string } | null>(null)
   const mapRef = useRef<IndiaMapHandle>(null)
+
+  /* Escape closes the entry sheet, the way it already closes JourneysSheet.
+     A station field with its list open swallows the key first — closing the
+     list the user is looking at, not the form around it. */
+  useEffect(() => {
+    if (!entryOpen) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEntryOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [entryOpen])
   /** Every journey between the same two stations, either direction — a
       round trip traces the same line on the map, so it reads as one route,
       not two. */
