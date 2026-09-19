@@ -1,0 +1,159 @@
+# Nightly encrypted backup of the Supabase database.
+#
+# The free tier keeps no backups at all. Not a short retention window — zero.
+# A bad migration, a mistyped `delete from journeys`, or a dropped table is
+# unrecoverable today. This workflow is the only copy of the data that exists
+# outside the live database, so treat a run of red X's as an outage.
+#
+# It is a separate concern from keep-supabase-awake.yml: that one protects
+# availability, this one protects the data. Neither substitutes for the other.
+#
+# ── Setup ─────────────────────────────────────────────────────────────────
+# Settings → Secrets and variables → Actions → New repository secret:
+#
+#   SUPABASE_DB_URL
+#     Supabase dashboard → Connect → Session pooler → URI. It looks like
+#       postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres
+#     Use the SESSION pooler on port 5432, not the direct connection and not
+#     the transaction pooler on 6543. Direct connections are IPv6-only and
+#     GitHub runners have no IPv6; the transaction pooler cannot hold the
+#     session state pg_dump needs. This string contains the database password,
+#     which unlike the publishable key is a real secret.
+#
+#   BACKUP_PASSPHRASE
+#     A long random passphrase you generate and store in your password manager.
+#     This repository is public, which means anyone can download the artifacts
+#     from any run, so the dump is encrypted before it is uploaded. Lose this
+#     passphrase and every backup becomes unreadable — there is no recovery.
+#
+# ── Restoring ─────────────────────────────────────────────────────────────
+# Download the artifact from the run you want, then:
+#
+#   gpg --decrypt platform-backup.sql.gz.gpg | gunzip > backup.sql
+#   psql "$SUPABASE_DB_URL" -f backup.sql
+#
+# Restore into a fresh project first and look at it before pointing anything
+# real at it. A backup you have never restored is a hypothesis, not a backup.
+
+name: Backup database
+
+on:
+  schedule:
+    # 03:07 UTC daily (08:37 IST). A day is the most data you can lose.
+    - cron: '7 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The runner ships postgresql-client 16. Supabase runs 17, and pg_dump
+      # refuses point blank to dump a server newer than itself, so the client
+      # has to come from PGDG rather than the Ubuntu archive.
+      - name: Install postgresql-client 17
+        run: |
+          set -euo pipefail
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump the database
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL is not set. See the header of this file."
+            exit 1
+          fi
+
+          # --no-owner / --no-privileges: the role names in a Supabase project
+          # are project-specific, so keeping them makes the dump restorable
+          # only into the project it came from — which is the one scenario
+          # where you do not need it.
+          pg_dump "$DB_URL" \
+            --schema=public \
+            --no-owner --no-privileges \
+            --file=dump.sql
+
+          # auth.users is owned by Supabase and its DDL should not be replayed,
+          # but the rows are the difference between "my users are back" and
+          # "everyone signs up again". Data only, as a reference copy.
+          pg_dump "$DB_URL" \
+            --schema=auth --data-only \
+            --table=auth.users --table=auth.identities \
+            --no-owner --no-privileges \
+            --file=auth.sql || {
+              echo "::warning::auth dump failed — the public schema dump is still valid."
+              : > auth.sql
+            }
+
+          cat dump.sql auth.sql > platform-backup.sql
+          rm -f dump.sql auth.sql
+
+      # The classic silent backup failure is a dump that succeeds and contains
+      # nothing: a connection to the wrong database, a permissions change, a
+      # schema that quietly emptied. Compare what is in the file against what
+      # is in the database and fail if they disagree.
+      - name: Verify the dump is not empty
+        env:
+          DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+
+          bytes=$(wc -c < platform-backup.sql)
+          echo "dump size: ${bytes} bytes"
+          if [ "$bytes" -lt 2000 ]; then
+            echo "::error::Dump is ${bytes} bytes — too small to be a real schema."
+            exit 1
+          fi
+
+          live=$(psql "$DB_URL" -tAc 'select count(*) from public.journeys')
+          dumped=$(grep -c '^COPY public.journeys' platform-backup.sql || true)
+          echo "journeys in database: ${live}"
+
+          if [ "$live" -gt 0 ] && [ "$dumped" -eq 0 ]; then
+            echo "::error::Database has ${live} journeys but the dump contains no journeys COPY block."
+            exit 1
+          fi
+
+      - name: Encrypt
+        env:
+          PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${PASSPHRASE:-}" ]; then
+            echo "::error::BACKUP_PASSPHRASE is not set. This repository is public — an unencrypted dump here is a data leak."
+            exit 1
+          fi
+
+          gzip -9 platform-backup.sql
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase-fd 0 \
+            --output platform-backup.sql.gz.gpg \
+            platform-backup.sql.gz <<< "$PASSPHRASE"
+          rm -f platform-backup.sql.gz
+
+          ls -la platform-backup.sql.gz.gpg
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-backup-${{ github.run_id }}
+          path: platform-backup.sql.gz.gpg
+          # Ninety days is the maximum GitHub allows. Older backups fall off
+          # the end, which is the correct behaviour: a rolling window, not an
+          # archive. If you want a keepsake copy, download one by hand.
+          retention-days: 90
+          if-no-files-found: error
