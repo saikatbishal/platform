@@ -427,6 +427,7 @@ export default function App() {
             </h2>
             <AddJourneyForm
               stations={mapData?.stations}
+              journeys={journeys}
               onAdd={(draft) => {
                 store.add(draft, mapData?.graph ?? null)
                 setEntryOpen(false)

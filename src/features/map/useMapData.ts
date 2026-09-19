@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { feature } from 'topojson-client'
 import type { Topology, GeometryCollection } from 'topojson-specification'
-import type { FeatureCollection, Geometry } from 'geojson'
-import { geoPath, geoGraticule } from 'd3-geo'
+import type { FeatureCollection, Geometry, Polygon } from 'geojson'
+import { geoPath, geoGraticule, type GeoPath } from 'd3-geo'
 import { createIndiaProjection, MAP_WIDTH, MAP_HEIGHT } from '@/lib/projection.ts'
 import { smoothGeoPath } from '@/lib/smoothPath.ts'
 import { parseRailGraph, type RailGraph, type RailGraphWire } from './route.ts'
@@ -30,8 +30,11 @@ const WAVE_POINTS: ReadonlyArray<readonly [number, number]> = [
 
 /** Everything the map draws, already projected into map space. */
 export interface MapData {
-  /** One path per state, keyed by the same name as Station.state. */
-  states: Array<{ name: string; d: string }>
+  /** One path per state, keyed by the same name as Station.state.
+      `labelAt` is where the name is written when the state is selected, and
+      is null only if the geometry has no centroid to give — the state still
+      draws, it just goes unlabelled rather than disappearing. */
+  states: Array<{ name: string; d: string; labelAt: [number, number] | null }>
   /** District borders. Fetched lazily, so absent until zoom asks for them. */
   districts: string[] | null
   /** Rail lines with their scalerank, for level-of-detail filtering. */
@@ -81,6 +84,31 @@ async function getJson<T>(path: string): Promise<T> {
   }
   if (!res.ok) throw new Error(`${url} came back ${res.status}.`)
   return (await res.json()) as T
+}
+
+/**
+ * Where a state's name is written.
+ *
+ * `path.centroid` of the whole geometry is the obvious answer and it is wrong
+ * for exactly the states people notice: Andaman & Nicobar is a chain spanning
+ * some 700 km of sea, so the mean of it lands in the Bay of Bengal, and
+ * Lakshadweep does the same on the other side. Taking the centroid of the
+ * largest ring instead puts the name on the biggest piece of land — the piece
+ * someone is actually looking at when they tap.
+ */
+function labelPoint(path: GeoPath, geometry: Geometry): [number, number] | null {
+  let target: Geometry | Polygon = geometry
+  if (geometry.type === 'MultiPolygon') {
+    let bestArea = -1
+    for (const coordinates of geometry.coordinates) {
+      const poly: Polygon = { type: 'Polygon', coordinates }
+      const area = path.area(poly)
+      if (area > bestArea) { bestArea = area; target = poly }
+    }
+  }
+  const [x, y] = path.centroid(target)
+  // A degenerate ring gives NaN rather than throwing.
+  return Number.isFinite(x) && Number.isFinite(y) ? [x, y] : null
 }
 
 function firstObject<T extends Topology>(topo: T) {
@@ -147,7 +175,7 @@ export function useMapData(): {
       const statePaths: MapData['states'] = []
       for (const f of statesFc.features) {
         const d = round(smoothGeoPath(projection, f))
-        if (d) statePaths.push({ name: f.properties?.st_nm ?? '', d })
+        if (d) statePaths.push({ name: f.properties?.st_nm ?? '', d, labelAt: labelPoint(path, f.geometry) })
       }
 
       const railPaths: MapData['rail'] = []
