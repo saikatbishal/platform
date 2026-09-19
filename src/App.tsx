@@ -321,6 +321,40 @@ export default function App() {
           )}
         </section>
 
+        {/* Sync state, directly above the totals it qualifies. Silent until
+            something has not reached the account — then it says what, that
+            nothing is lost, and what will happen next, with the one action
+            that helps. Not vermillion: the journeys are safe on this device,
+            and an alarm colour for a tunnel on the Konkan line would teach
+            people to ignore the colour. Hidden when all is well; there is no
+            "Synced ✓" — the absence of this is the success state. */}
+        {signedIn && !demo && (store.sync.readFailed || store.sync.pending > 0) && (
+          <div
+            role="status"
+            className="pointer-events-auto flex max-w-80 items-center gap-3 rounded-sm border border-line bg-surface py-1 pr-1 pl-3"
+          >
+            <p className="mb-0 py-1.5 text-xs leading-relaxed text-ink-soft">
+              {store.sync.readFailed ? (
+                <>Couldn&rsquo;t reach your account, so only the journeys saved on this device are showing. Nothing has been lost.</>
+              ) : (
+                <>
+                  <span className="tabular text-ink">{store.sync.pending}</span>{' '}
+                  {store.sync.pending === 1 ? 'journey isn’t' : 'journeys aren’t'} in your account yet. They&rsquo;re
+                  kept on this device and will go up when you&rsquo;re back online.
+                </>
+              )}
+            </p>
+            <button
+              type="button"
+              onClick={store.sync.retry}
+              disabled={store.sync.busy}
+              className="min-h-11 shrink-0 rounded-sm px-2.5 text-label font-semibold tracking-label text-ink uppercase transition-colors duration-150 hover:bg-surface-2 hover:text-accent disabled:opacity-50"
+            >
+              {store.sync.readFailed ? (store.sync.busy ? 'Checking' : 'Try again') : (store.sync.busy ? 'Sending' : 'Send now')}
+            </button>
+          </div>
+        )}
+
         {/* Ordering here is bottom-up (flex-col-reverse, first child lowest):
             totals, then milestones and the pass, then — on sm and up only —
             the primary action. "Add your journey" sits ABOVE the two

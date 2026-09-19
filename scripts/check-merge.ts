@@ -10,7 +10,7 @@
  *   node --experimental-strip-types scripts/check-merge.ts
  */
 
-import { mergeJourneys, sameJourney } from '../src/features/journeys/mergeJourneys.ts'
+import { mergeJourneys, planSync, sameJourney } from '../src/features/journeys/mergeJourneys.ts'
 
 type J = Parameters<typeof sameJourney>[0]
 
@@ -104,6 +104,49 @@ const check = (name: string, ok: boolean) => {
   const dupe = j({ travelledOn: '2026-03-03' })
   const { merged } = mergeJourneys([], [dupe, { ...dupe, id: 'other' }])
   check('two identical rows inside the local bucket both arrive (known)', merged.length === 2)
+}
+
+// ── planSync: what a sign-in or retry sends ─────────────────────────────────
+
+// A pending add whose reply was lost, but which did land.
+{
+  const landed = j({ travelledOn: '2026-04-01' })
+  const { pendingLanded, toSend } = planSync([landed], [landed], [])
+  check('a pending journey the server already has is not re-sent', toSend.length === 0)
+  check('…and is dropped from the pending log', pendingLanded[0] === landed.id)
+}
+
+// A pending add that never landed.
+{
+  const lost = j({ travelledOn: '2026-04-02' })
+  const { toSend, fromAnon } = planSync([], [lost], [])
+  check('an unconfirmed pending journey is sent', toSend.length === 1 && toSend[0]?.id === lost.id)
+  check('…and is not mistaken for a signed-out one', !fromAnon.has(lost.id))
+}
+
+// A signed-out journey sent by a handover whose confirmation was never recorded.
+{
+  const a = j({ travelledOn: '2026-04-03' })
+  const { toSend, anonAlreadyThere } = planSync([a], [], [a])
+  check('a signed-out journey already on the server by id is not re-sent', toSend.length === 0)
+  check('…and is cleared from the device as confirmed', anonAlreadyThere[0] === a.id)
+}
+
+// The same trip unsent in the pending log and sitting in the signed-out bucket.
+{
+  const p = j({ travelledOn: '2026-04-04' })
+  const a = j({ travelledOn: '2026-04-04' })   // same trip, different id
+  const { toSend } = planSync([], [p], [a])
+  check('a trip in both local buckets is sent once', toSend.length === 1 && toSend[0]?.id === p.id)
+}
+
+// The first-sign-in case, through the planner.
+{
+  const server = [j({ travelledOn: '2026-01-01' })]
+  const anon = [j({ travelledOn: '2026-01-01' }), j({ travelledOn: '2026-05-05' })]
+  const { toSend, fromAnon, anonAlreadyThere } = planSync(server, [], anon)
+  check('first sign-in: only the new signed-out trip is sent', toSend.length === 1 && fromAnon.has(anon[1]!.id))
+  check('first sign-in: the duplicate is confirmed, not sent', anonAlreadyThere.length === 1 && anonAlreadyThere[0] === anon[0]!.id)
 }
 
 console.log(failed === 0 ? '\nall checks passed' : `\n${failed} FAILED`)
