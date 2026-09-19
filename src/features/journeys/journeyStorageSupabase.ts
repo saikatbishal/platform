@@ -37,59 +37,100 @@ function fromPgRow(row: Record<string, unknown>): Journey | null {
 }
 
 /**
+ * Every call here says whether it worked, and callers must look.
+ *
+ * These used to log the error and return `[]` / `null` / `false`, which read
+ * exactly like success to everything above them. The cost was not cosmetic:
+ * the sign-in handover wrapped its uploads in a `try/catch` that could never
+ * fire, so a failed upload still emptied the device's copy — the journeys were
+ * then in neither place. A failed read looked like an empty account. Neither
+ * of those is recoverable after the fact, so failure is now a value the type
+ * system makes the caller handle, not a log line.
+ */
+export type SyncResult<T> = { ok: true; value: T } | { ok: false; error: string }
+
+const fail = (error: unknown): { ok: false; error: string } => ({
+  ok: false,
+  error:
+    error && typeof error === 'object' && 'message' in error
+      ? String((error as { message: unknown }).message)
+      : String(error),
+})
+
+const NOT_CONFIGURED = { ok: false, error: 'Supabase is not configured' } as const
+
+/**
  * Read journeys for a signed-in user from Supabase.
  * RLS policy handles user isolation — the query cannot see other users' data.
+ *
+ * A failure is NOT an empty list. The caller must not treat "could not ask" as
+ * "has nothing" — that is how a network blip at sign-in used to hide an
+ * account's whole history and upload the device's journeys into it blind.
  */
-export async function readFromSupabase(userId: string): Promise<Journey[]> {
-  if (!supabase) return []
-  const { data, error } = await supabase
-    .from('journeys')
-    .select('*')
-    .eq('user_id', userId)
-    .order('travelled_on', { ascending: false })
-  if (error) {
-    console.error('[journeys] Supabase read failed:', error)
-    return []
+export async function readFromSupabase(userId: string): Promise<SyncResult<Journey[]>> {
+  if (!supabase) return NOT_CONFIGURED
+  try {
+    const { data, error } = await supabase
+      .from('journeys')
+      .select('*')
+      .eq('user_id', userId)
+      .order('travelled_on', { ascending: false })
+    if (error) return fail(error)
+    const rows = (data ?? []).map((row) => fromPgRow(row as Record<string, unknown>))
+    const good = rows.filter((j): j is Journey => j !== null)
+    if (import.meta.env.DEV && good.length !== rows.length) {
+      console.warn(`[journeys] ${rows.length - good.length} server rows failed validation`)
+    }
+    return { ok: true, value: good }
+  } catch (e) {
+    // supabase-js returns most failures as `error`, but a fetch that never
+    // got a response (offline, DNS, CORS) can still throw.
+    return fail(e)
   }
-  if (!data) return []
-  return data
-    .map((row) => fromPgRow(row))
-    .filter((j) => j !== null) as Journey[]
 }
 
 /**
- * Add a journey to Supabase.
- * Returns the inserted journey on success, null on failure.
+ * Save a journey to Supabase — idempotently, keyed on the journey's own id.
+ *
+ * An upsert that ignores an existing row, not an insert, because every save
+ * here can be retried: a request can time out after the row landed, a pending
+ * journey is re-sent on the next load, and React's dev-mode double invoke used
+ * to fire the same insert twice. A plain insert turns each of those into a
+ * primary-key error on a row that is in fact safely stored — which, now that
+ * errors are no longer swallowed, would strand the journey as "not saved"
+ * forever. With `ignoreDuplicates` a second send is a no-op that succeeds.
+ *
+ * Success returns the journey as sent: the server either stored exactly this
+ * row, or already had a row with this id — which can only be this journey.
  */
-export async function addToSupabase(userId: string, journey: Journey): Promise<Journey | null> {
-  if (!supabase) return null
-  const row = toPgRow(journey)
-  const { data, error } = await supabase
-    .from('journeys')
-    .insert({ ...row, user_id: userId })
-    .select()
-    .single()
-  if (error) {
-    console.error('[journeys] Supabase insert failed:', error)
-    return null
+export async function addToSupabase(userId: string, journey: Journey): Promise<SyncResult<Journey>> {
+  if (!supabase) return NOT_CONFIGURED
+  try {
+    const { error } = await supabase
+      .from('journeys')
+      .upsert({ ...toPgRow(journey), user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
+    if (error) return fail(error)
+    return { ok: true, value: journey }
+  } catch (e) {
+    return fail(e)
   }
-  return fromPgRow(data)
 }
 
 /**
- * Remove a journey from Supabase.
- * Returns true on success, false on failure.
+ * Remove a journey from Supabase. Deleting a row that is already gone
+ * succeeds — the end state the caller asked for is true either way.
  */
-export async function removeFromSupabase(userId: string, journeyId: string): Promise<boolean> {
-  if (!supabase) return false
-  const { error } = await supabase
-    .from('journeys')
-    .delete()
-    .eq('id', journeyId)
-    .eq('user_id', userId)
-  if (error) {
-    console.error('[journeys] Supabase delete failed:', error)
-    return false
+export async function removeFromSupabase(userId: string, journeyId: string): Promise<SyncResult<null>> {
+  if (!supabase) return NOT_CONFIGURED
+  try {
+    const { error } = await supabase
+      .from('journeys')
+      .delete()
+      .eq('id', journeyId)
+      .eq('user_id', userId)
+    if (error) return fail(error)
+    return { ok: true, value: null }
+  } catch (e) {
+    return fail(e)
   }
-  return true
 }
