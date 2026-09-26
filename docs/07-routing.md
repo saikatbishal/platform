@@ -18,11 +18,11 @@ corner, and the corner is sea.
 Measured, by sampling 25 points along each segment and testing each against the
 760 district polygons:
 
-| | points | length | share of the line over water |
-| --- | --- | --- | --- |
-| Vijayawada → Chennai, straight | 2 | 384 km | **75%** |
-| Whole Howrah → Katpadi route, straight | 7 | 2,024 km | 13% |
-| Whole route, following the track | 338 | 2,294 km | **0%** |
+|                                         | points | length   | share of the line over water |
+| --------------------------------------- | ------ | -------- | ---------------------------- |
+| Vijayawada → Chennai, straight         | 2      | 384 km   | **75%**                |
+| Whole Howrah → Katpadi route, straight | 7      | 2,024 km | 13%                          |
+| Whole route, following the track        | 338    | 2,294 km | **0%**                 |
 
 The straight line also **undercounts distance by about 10%**, so the kilometre
 total — the headline number in the whole app — was wrong too.
@@ -75,13 +75,13 @@ browser, and Dijkstra over it takes 2–19 ms, so routing needs no backend.
 
 Verified:
 
-| route | via stops | length | real | over water |
-| --- | --- | --- | --- | --- |
-| Vijayawada → Chennai | 71 | 427 km | ~430 km | 0.00% |
-| Howrah → Chennai | 256 | 1,596 km | ~1,660 km | 0.00% |
-| Howrah → New Delhi | 202 | 1,433 km | ~1,450 km | 0.00% |
-| New Delhi → Mumbai Central | 217 | 1,346 km | ~1,385 km | 0.14% |
-| Chennai → Katpadi | 37 | 128 km | ~130 km | 0.00% |
+| route                       | via stops | length   | real      | over water |
+| --------------------------- | --------- | -------- | --------- | ---------- |
+| Vijayawada → Chennai       | 71        | 427 km   | ~430 km   | 0.00%      |
+| Howrah → Chennai           | 256       | 1,596 km | ~1,660 km | 0.00%      |
+| Howrah → New Delhi         | 202       | 1,433 km | ~1,450 km | 0.00%      |
+| New Delhi → Mumbai Central | 217       | 1,346 km | ~1,385 km | 0.14%      |
+| Chennai → Katpadi          | 37        | 128 km   | ~130 km   | 0.00%      |
 
 Distances now land within a few percent of real rail distances, which also
 retires the "great-circle undercounts" caveat that was in the spec.

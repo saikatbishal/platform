@@ -83,11 +83,17 @@ function drawCard(canvas: HTMLCanvasElement, args: {
   ctx.fillStyle = land
   for (const s of args.data.states) ctx.fill(new Path2D(s.d))
 
+  // One path, one stroke — the same fix the live map got (26 Sep): stroking
+  // each route separately compounds antialiased edges wherever journeys share
+  // track, so a corridor travelled often drew heavier and fuzzier than one
+  // travelled once. Thinner too, for the same reason. --route-taken is --ink
+  // now, which also fixes this card after dark: it used to draw #000 lines on
+  // the night ground, i.e. drew them invisibly.
   ctx.strokeStyle = routeTaken
-  ctx.lineWidth = 3 / fit
+  ctx.lineWidth = 2 / fit
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  for (const r of args.routes) ctx.stroke(new Path2D(r.d))
+  if (args.routes.length) ctx.stroke(new Path2D(args.routes.map((r) => r.d).join(' ')))
   ctx.restore()
 
   // The big three numbers, stacked — cream is reserved for large numerals
