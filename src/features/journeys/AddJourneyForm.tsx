@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent, RefObject } from 'react'
 import { useStationSearch } from './useStationSearch.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
+import type { TrainOption } from './useTrainsBetween.ts'
 import { useTrainTimes } from './useTrainTimes.ts'
 import type { StationHit } from './searchStations.ts'
 import type { Journey, JourneyDraft, Station } from '@/types/index.ts'
@@ -271,6 +272,263 @@ function StationField({
   )
 }
 
+/**
+ * The train picker.
+ *
+ * Was a native `<select>`, which is exactly the right control for eight
+ * options and the wrong one for this: Sealdah to Rampurhat offers 35 trains,
+ * and a native select renders that as an OS menu the length of the viewport,
+ * overlapping the whole form and the map behind it. There is no CSS that
+ * fixes it — the popup is drawn by the operating system, not the page.
+ *
+ * So this is a listbox built the same way `StationField` above is built, and
+ * deliberately so: the two fields sit next to each other in the same form and
+ * should not behave like they were written by different people. Every
+ * non-obvious line in here is a lesson that field already paid for — the
+ * `tabIndex={-1}` on a scrolling box, the swallowed `pointerdown`,
+ * `pointermove` instead of `mouseenter`. The comments on those live up there
+ * rather than being copied down here.
+ *
+ * One capability had to be rebuilt rather than inherited. A native select
+ * lets you type "13153" and jump; replacing it with a `<div>` would have
+ * silently thrown that away, which for a list of 35 numbered trains is the
+ * difference between finding yours and scrolling for it. Hence `typed` below.
+ */
+function TrainField({
+  trains, value, onChange, custom, labelledBy,
+}: {
+  trains: readonly TrainOption[]
+  value: string
+  onChange: (next: string) => void
+  /** The sentinel for "a train that isn't listed" — owned by the form. */
+  custom: string
+  /**
+   * The id of the visible "Train" text above this field.
+   *
+   * Named rather than wrapped: this field cannot sit inside a `<label>`. A
+   * button is a lable element, so a label around this would forward
+   * clicks to the trigger — and that is the bug StationField's long comment
+   * describes, where a tap on a result activated something else entirely.
+   * `aria-labelledby` gives the control the same accessible name with none of
+   * the activation behaviour.
+   */
+  labelledBy: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+
+  /*
+   * The two synthetic rows bracket the real ones, so the whole list is one
+   * array and the arrow keys do not need to know which rows came from the
+   * timetable. `value` doubles as each row's id, which is what makes the
+   * selected lookup below a find rather than an index sum.
+   */
+  const rows = useMemo(
+    () => [
+      { value: '', number: null, name: 'Not recorded — draw the shortest path', stops: null },
+      ...trains.map((t) => ({ value: t.number, number: t.number, name: t.name, stops: t.stops })),
+      { value: custom, number: null, name: 'A train that isn’t listed…', stops: null },
+    ],
+    [trains, custom],
+  )
+
+  const selectedIndex = rows.findIndex((r) => r.value === value)
+  const selected = rows[selectedIndex === -1 ? 0 : selectedIndex]
+  const activeIndex = open ? Math.min(Math.max(active, 0), rows.length - 1) : -1
+
+  const triggerId = useId()
+  const listId = useId()
+  const optionId = (i: number) => `${listId}-opt-${i}`
+
+  const listRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    if (activeIndex < 0) return
+    listRef.current?.querySelector<HTMLElement>('[data-active="true"]')
+      ?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
+
+  /*
+   * Type-to-jump, the one thing a native select did that a div does not.
+   *
+   * The buffer is what makes "131" a prefix rather than three separate jumps
+   * to 1, 3 and 1 — and it clears after a second, so a pause resets instead
+   * of leaving a stale prefix nothing can match.
+   *
+   * Two passes, in this order, and the order is the point. A number prefix
+   * anywhere in the list beats any name match, because a train number is what
+   * is printed on the ticket in your hand; only then does it look inside
+   * names, where "gour" should find the Sealdah-Malda Town Gour Express.
+   * Names are searched on real trains only: the two synthetic rows would
+   * otherwise hijack single letters — "s" would land on "Not recorded — draw
+   * the shorteSt path" — and they are one Home or End press away regardless.
+   *
+   * The first version of this was one pass reading
+   * `r.number?.toLowerCase().startsWith(q) ?? r.name...includes(q)`, which is
+   * wrong in a way that reads as right: `??` only falls through on null and
+   * undefined, and a failed `startsWith` is `false`, so the name half never
+   * ran for any row that had a number — every real train, i.e. all of them.
+   * Caught by testing the matcher against the real Sealdah list rather than
+   * by reading it.
+   */
+  const typed = useRef({ buffer: '', at: 0 })
+  const jump = (char: string) => {
+    const now = Date.now()
+    typed.current.buffer = now - typed.current.at > 1000 ? char : typed.current.buffer + char
+    typed.current.at = now
+    const q = typed.current.buffer.toLowerCase()
+
+    const byNumber = rows.findIndex((r) => r.number?.toLowerCase().startsWith(q))
+    const hit = byNumber !== -1
+      ? byNumber
+      : rows.findIndex((r) => r.number !== null && r.name.toLowerCase().includes(q))
+    if (hit === -1) return
+
+    setActive(hit)
+    // Closed, typing picks — the same thing a native select does, so the
+    // field is still usable by keyboard without ever opening it.
+    if (!open) onChange(rows[hit]?.value ?? '')
+  }
+
+  const choose = (i: number) => {
+    const row = rows[i]
+    if (!row) return
+    onChange(row.value)
+    setOpen(false)
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Escape') {
+      // Same rule as the station list: only swallow the key if there is
+      // something on screen to close, or Escape stops closing the sheet.
+      if (!open) return
+      e.stopPropagation()
+      setOpen(false)
+      return
+    }
+    if (e.key === 'Tab') {
+      // Leaving the field must not leave 35 trains hanging over the fields
+      // below it. Not prevented — Tab still moves on, the form's own handler
+      // still gets its turn.
+      setOpen(false)
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!open) {
+        // Opening lands on what is already chosen rather than on row zero, so
+        // re-opening a field you have used does not look like it forgot.
+        setActive(selectedIndex === -1 ? 0 : selectedIndex)
+        setOpen(true)
+        return
+      }
+      setActive(
+        e.key === 'ArrowDown'
+          ? (activeIndex + 1) % rows.length
+          : (activeIndex - 1 + rows.length) % rows.length,
+      )
+      return
+    }
+    if (e.key === 'Home' || e.key === 'End') {
+      if (!open) return
+      e.preventDefault()
+      setActive(e.key === 'Home' ? 0 : rows.length - 1)
+      return
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      /* The Enter that picks a train is not the Enter that logs the journey —
+         the same trap the station list documents. Space would otherwise
+         scroll the sheet. */
+      e.preventDefault()
+      if (!open) { setActive(selectedIndex === -1 ? 0 : selectedIndex); setOpen(true); return }
+      choose(activeIndex)
+      return
+    }
+    // Printable single characters only: this must not eat Shift, F5 or Meta+R.
+    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) jump(e.key)
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        id={triggerId}
+        role="combobox"
+        aria-labelledby={labelledBy}
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
+        onClick={() => {
+          setActive(selectedIndex === -1 ? 0 : selectedIndex)
+          setOpen((o) => !o)
+        }}
+        /* Closes on an outside click and on Tab, and never fires on an option
+           press, because each option swallows its own pointerdown — the same
+           mechanism that keeps the station input from blurring mid-tap. */
+        onBlur={() => { setOpen(false) }}
+        onKeyDown={onKeyDown}
+        className="flex min-h-11 w-full items-center gap-2 rounded-sm border border-line bg-surface px-3 py-2.5 text-left text-ink focus:border-accent focus:outline-none"
+      >
+        {selected?.number && (
+          <span className="tabular shrink-0 text-sm text-accent">{selected.number}</span>
+        )}
+        <span className={`min-w-0 flex-1 truncate ${selected?.number ? 'text-ink' : 'text-ink-faint'}`}>
+          {selected?.name}
+        </span>
+        <span aria-hidden="true" className="shrink-0 text-ink-faint">{open ? '▾' : '▸'}</span>
+      </button>
+
+      {open && (
+        <ul
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Train"
+          /* Chrome makes any scrolling box a tab stop; see the station list. */
+          tabIndex={-1}
+          /* 240px, the same ceiling the station list uses — about five rows
+             of the 44px minimum, which is enough to read as a list without
+             becoming the page. The whole bug this component exists for was a
+             menu that ignored any ceiling at all. */
+          className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-sm border border-line bg-surface"
+        >
+          {rows.map((r, i) => (
+            <li key={r.value || `synthetic-${i}`} role="presentation">
+              <button
+                type="button"
+                id={optionId(i)}
+                role="option"
+                aria-selected={r.value === value}
+                data-active={i === activeIndex}
+                tabIndex={-1}
+                onPointerDown={(e) => { e.preventDefault() }}
+                onPointerMove={() => { setActive(i) }}
+                onClick={() => { choose(i) }}
+                className={`flex min-h-11 w-full items-baseline gap-2 border-b border-line px-3 py-2.5 text-left last:border-b-0 ${
+                  i === activeIndex ? 'bg-surface-2' : ''
+                }`}
+              >
+                {r.number ? (
+                  <span className="tabular w-16 shrink-0 text-sm text-accent">{r.number}</span>
+                ) : null}
+                <span className={`min-w-0 flex-1 truncate ${r.number ? 'text-ink' : 'text-ink-soft'}`}>
+                  {r.name}
+                </span>
+                {r.stops !== null && (
+                  <span className="tabular shrink-0 text-sm text-ink-faint">{r.stops} stops</span>
+                )}
+                {/* The selected row says so even when the highlight is
+                    somewhere else, which it always is while arrowing. */}
+                {r.value === value && (
+                  <span aria-hidden="true" className="shrink-0 text-accent">✓</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
 export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
   const { search } = useStationSearch(stations, journeys)
   const { request, between, loading } = useTrainsBetween()
@@ -312,6 +570,7 @@ export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
   useEffect(() => { setTrain(''); setCustomTrain('') }, [from, to])
 
   const CUSTOM = '#custom'
+  const trainLabelId = useId()
   const trainNumber = train === CUSTOM ? customTrain.trim() : train
 
   // Only a train the timetable knows has times to offer. A hand-entered one
@@ -349,7 +608,7 @@ export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
 
   /**
    * Everything Tab can reach in the form as it stands — recomputed per press,
-   * because the train select, the two time fields and the submit button all
+   * because the train picker, the two time fields and the submit button all
    * come and go. `tabIndex >= 0` is what keeps the station results out of it:
    * they are real buttons, deliberately not tab stops.
    */
@@ -421,8 +680,15 @@ export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
         inputRef={toInputRef}
       />
 
-      <label className="block">
-        <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
+      {/* A <div>, not a <label>, for the reason TrainField's `labelledBy`
+          prop documents: a button is labelable, so a label wrapped around
+          this would forward clicks into the control. The same trap
+          StationField hit. */}
+      <div className="block">
+        <span
+          id={trainLabelId}
+          className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase"
+        >
           Train {from && to && <span className="text-ink-faint">— optional</span>}
         </span>
         {!from || !to ? (
@@ -440,21 +706,15 @@ export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
             shortest path instead.
           </p>
         ) : (
-          <select
+          <TrainField
+            trains={trains}
             value={train}
-            onChange={(e) => { setTrain(e.target.value) }}
-            className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
-          >
-            <option value="">Not recorded — draw the shortest path</option>
-            {trains.map((t) => (
-              <option key={t.number} value={t.number}>
-                {t.number} · {t.name} — {t.stops} stops
-              </option>
-            ))}
-            <option value={CUSTOM}>A train that isn&rsquo;t listed…</option>
-          </select>
+            onChange={setTrain}
+            custom={CUSTOM}
+            labelledBy={trainLabelId}
+          />
         )}
-      </label>
+      </div>
 
       {/*
         An offer, not a default.

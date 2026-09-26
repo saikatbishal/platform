@@ -83,22 +83,18 @@
     --board-frame:  #6E645A;   /* the bracket and posts it hangs from */
 
     /* map semantics — derived, so intent is in one place */
-    /* The travelled route is black, not the accent — a deliberate change
-       (6 Sep) away from the yellow this token used to alias. On the dark
-       ground that is a real problem, not a style note: literal black
-       measures 1.23:1 against --ground and 1.3–2.3:1 against the land
-       tones a route crosses, and darkening it further buys nothing — the
-       ground here is already near-black, so the only direction with room
-       to move is lighter, which stops reading as "black". So the line
-       stays true `#000` in both themes, and visibility comes from
-       `--route-halo` instead of the line itself: a soft `--ink` glow
-       behind the black stroke — a dark line cut into a field of light,
-       the way a wet rail looks at night, rather than a light line on a
-       dark field. `--ink` already flips per theme (near-white on the
-       coach navy, near-navy on paper), so one definition covers both: on
-       paper the "glow" is just an ordinary soft dark shadow, which is what
-       this token was doing anyway before the route was black. */
-    --route-taken:   #000000;
+    /* The travelled route is --ink: coach navy on paper, near-white on the
+       night ground. One definition, both themes, because --ink already flips.
+       (26 Sep.) Before this the line was literal #000 in both themes, and on
+       the dark ground that measured 1.23:1 — invisible — so each route also
+       drew a wide soft --route-halo glow behind it purely to be seen. Stacked
+       over a corridor travelled ten times, those ten translucent halos became
+       a grey smudge, and the map looked shabby exactly where it should look
+       best. The halo is gone from the routes; the line has to carry its own
+       contrast now, and --ink does: 14.9:1 on the dark ground, ~8:1 on the
+       dark visited-state fill, ~7.8:1 on the tan visited fill in light.
+       On paper, navy #12283F reads as the same thin dark rail #000 did. */
+    --route-taken:   var(--ink);
     --route-halo:    var(--ink);
     --route-planned: var(--oxide);
     --route-idle:    var(--line);

@@ -164,6 +164,24 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
   )
 
   /**
+   * Every visible route folded into as few paths as possible — see where
+   * these are drawn for why one path and not one per journey. Two, because
+   * solid and dashed cannot share a stroke; the latest journey is split out
+   * so it can sit half a pixel heavier on top.
+   */
+  const mergedRoutes = useMemo(() => {
+    const exact: string[] = []
+    const inferred: string[] = []
+    for (const r of routes) (r.exact ? exact : inferred).push(r.d)
+    const latest = routes.find((r) => r.id === latestJourney?.id) ?? null
+    return {
+      exact: exact.join(' '),
+      inferred: inferred.join(' '),
+      latest: latest ? { d: latest.d, exact: latest.exact } : null,
+    }
+  }, [routes, latestJourney])
+
+  /**
    * Where the latest journey ended, as a state. Read from the destination
    * station, not from the route, so a journey the graph could not draw still
    * lights the state it arrived in — per "never silently drop a journey",
@@ -639,10 +657,10 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
             />
           ))}
 
-          {/* Where the latest journey ended. An outline in the route's own
-              halo colour plus the faintest wash of it — the same light the
-              latest line is lit with, spilling onto the state it arrived in,
-              so the two read as one event. Not the accent: that is the tap
+          {/* Where the latest journey ended. An outline in --route-halo
+              (which is --ink, the route's own colour) plus the faintest wash
+              of it, spilling onto the state it arrived in, so the line and the
+              arrival read as one event. Not the accent: that is the tap
               selection, drawn next and on top, and a state can be both. Not
               vermillion: that is the you-are-here dot inside this state, and
               two red things make neither urgent. Ambient rather than a
@@ -725,36 +743,28 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
       >
         <g ref={overG}>
           <g>
-            {/* The halo used to be the line's own colour at low opacity — a
-                soft yellow glow, since --accent is bright enough that even a
-                15%-opacity wash reads against the navy. That stopped working
-                the moment the line became black: black at 15% opacity on a
-                near-black ground is not a soft glow, it is nothing. The halo
-                is --route-halo now, not --route-taken — see tokens.css — so
-                the travelled route reads as a dark line cut into a field of
-                light rather than trying to be a dim version of itself. */}
-            {/* The actual hit target for hover/tap: `pointer-events` is
-                `none` on the whole svg (so it never steals a drag from the
-                stage), re-enabled here to just the stroke, which is this
-                path's only paint anyway (`fill="none"`) — a click a few
-                pixels off the visible line still lands inside the 9px halo,
-                which matters more on a touchscreen than a cursor.
-                `routesForDisplay` (oldest first) is what makes the most
-                recently travelled journey the one that responds where two
-                overlap: it paints last, on top, so it is what the pointer
-                hits. */}
-            {/* The latest journey is lit: the halo is the route's only
-                source of visibility (the line itself is black), so turning
-                the halo up is what "highlighted" means in this system — a
-                wider, brighter glow, not a new colour. Wider also makes it the
-                easiest line to hit with a thumb, which suits the journey most
-                likely to be the one tapped. */}
+            {/* Hit targets only — nothing here is painted.
+                These used to be each route's visible halo: a 9px (12px for
+                the latest) --route-halo glow at 15–40% opacity, there because
+                the line itself was black and invisible on the night ground.
+                It worked for one journey and failed for ten. Every trip down
+                the same corridor laid another translucent band over the last,
+                so Delhi–Kanpur travelled often became a grey smudge wider than
+                the line it surrounded. The line now carries its own contrast
+                (--route-taken is --ink, see tokens.css) and the halo is gone.
+
+                The path stays, stroked transparent, because it was also the
+                thing that makes a thin line tappable: `pointer-events: stroke`
+                hit-tests the stroke's geometry regardless of its paint, so a
+                thumb landing 6px off a 1.5px line still opens the journey.
+                `pointer-events` is `none` on the whole svg (so it never steals
+                a drag from the stage) and re-enabled here to just the stroke.
+                `routesForDisplay` (oldest first) keeps the most recent journey
+                on top where two overlap, so it is what a tap hits. */}
             {routesForDisplay.map((r) => (
-              <path key={`halo-${r.id}`} d={r.d} fill="none"
-                className={`stroke-route-halo [vector-effect:non-scaling-stroke] [pointer-events:stroke] ${
-                  r.id === latestJourney?.id ? 'opacity-40' : 'opacity-15'
-                }`}
-                strokeWidth={r.id === latestJourney?.id ? 12 : 9} strokeLinecap="round" strokeLinejoin="round"
+              <path key={`hit-${r.id}`} d={r.d} fill="none"
+                className="stroke-transparent [vector-effect:non-scaling-stroke] [pointer-events:stroke]"
+                strokeWidth={12} strokeLinecap="round" strokeLinejoin="round"
                 onPointerEnter={(e) => {
                   if (e.pointerType !== 'mouse') return
                   setActiveJourneyId(r.id)
@@ -787,24 +797,45 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
                 }}
               />
             ))}
-            {/* Solid means the line is a record: the journey named a train and
+            {/* The visible lines: two paths for the whole map, not one per
+                journey, and that is the other half of the fix above.
+
+                Ten journeys on one corridor used to be ten stacked strokes.
+                Even opaque, stacked strokes are not identical to one: each
+                antialiased edge adds its partial coverage to the last, so a
+                well-travelled line drew visibly heavier and fuzzier than a
+                once-travelled one. A single <path> made of many subpaths is
+                stroked as one shape — overlap is painted once — so a corridor
+                travelled fifty times is exactly as crisp as one travelled
+                once, including where two different routes share only part
+                of their track.
+
+                Solid means the line is a record: the journey named a train and
                 this is that train's own stop list. Dashed means it is the
-                shortest path the graph could find between two endpoints — a
-                plausible answer, not a true one. route.ts has always drawn
-                that distinction and returned `exact`; nothing had ever read
-                it, so a guess and a record looked identical. */}
-            {routesForDisplay.map((r) => (
-              <path key={`line-${r.id}`} d={r.d} fill="none"
+                shortest path the graph could find — a plausible answer, not a
+                true one. Dashed goes underneath so that where a guess and a
+                record share track, the record is what shows. */}
+            {mergedRoutes.inferred && (
+              <path d={mergedRoutes.inferred} fill="none"
+                className="stroke-route-taken [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]"
+                strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            {mergedRoutes.exact && (
+              <path d={mergedRoutes.exact} fill="none"
+                className="stroke-route-taken [vector-effect:non-scaling-stroke]"
+                strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            {/* The latest journey, half a pixel heavier and drawn on top. That
+                is the whole highlight now — the glow that used to mark it is
+                gone with the rest — and together with the you-are-here dot at
+                its end it is enough to find it without shouting. */}
+            {mergedRoutes.latest && (
+              <path d={mergedRoutes.latest.d} fill="none"
                 className={`stroke-route-taken [vector-effect:non-scaling-stroke]${
-                  r.exact ? '' : ' [stroke-dasharray:9_5]'
+                  mergedRoutes.latest.exact ? '' : ' [stroke-dasharray:6_4]'
                 }`}
-                strokeWidth={r.id === latestJourney?.id ? 3 : 2.4} strokeLinecap="round" strokeLinejoin="round">
-                <title>
-                  {r.id === latestJourney?.id ? 'Your latest journey. ' : ''}
-                  {r.exact ? 'Route as the train runs it' : 'Shortest path — no train recorded'}
-                </title>
-              </path>
-            ))}
+                strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            )}
             {/* An unroutable endpoint keeps its position and its colour — the
                 journey happened and this is where it ended — but goes hollow
                 and dashed, and carries a <title> saying why. It is drawn in
