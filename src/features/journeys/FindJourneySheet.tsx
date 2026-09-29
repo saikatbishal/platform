@@ -87,7 +87,7 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
 
-  const { hits, terms, degraded } = useMemo(
+  const { hits, terms, date, degraded } = useMemo(
     () => searchJourneys(journeys, query, data?.byCode ?? null),
     [journeys, query, data],
   )
@@ -109,7 +109,8 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
 
   /* An empty query is the log in date order, so this is where "five recent"
      is decided rather than inside the matcher. Typing shows every match. */
-  const rows = terms.length === 0 ? hits.slice(0, RECENT_COUNT) : hits
+  const blank = terms.length === 0 && date === null
+  const rows = blank ? hits.slice(0, RECENT_COUNT) : hits
   const activeIndex = rows.length === 0 ? -1 : Math.min(active, rows.length - 1)
 
   const listId = useId()
@@ -142,9 +143,9 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
     return () => { window.removeEventListener('keydown', onKey) }
   }, [cardOpen, onClose])
 
-  const noResults = terms.length > 0 && rows.length === 0
+  const noResults = !blank && rows.length === 0
   const countLabel = rows.length === 1 ? '1 match' : `${rows.length} matches`
-  const label = terms.length === 0
+  const label = blank
     ? 'Recent'
     // Station names and states are missing until stations.json lands, so the
     // count is honestly incomplete. Said in the label rather than covered by a
@@ -235,8 +236,8 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
               onKeyDown={onKeyDown}
               /* The most useful thing a placeholder can do is list what the
                  box will look through. `inputmode` stays at text: codes and
-                 years are typed alongside words. */
-              placeholder="Station, state, train, note or year"
+                 dates are typed alongside words. */
+              placeholder="Station, state, train, note or date"
               aria-label="Find a journey"
               aria-controls={rows.length > 0 ? listId : undefined}
               aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
@@ -333,7 +334,7 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
 
           {/* Only reachable if the log emptied while this was open — the
               magnifier itself is gated on having journeys. */}
-          {rows.length === 0 && terms.length === 0 && (
+          {rows.length === 0 && blank && (
             <p className="px-4 py-5 text-base text-ink-soft">Nothing logged yet.</p>
           )}
         </div>
@@ -356,7 +357,8 @@ function Row({
 }) {
   const j = hit.journey
   const { day, month, year } = dateParts(j.travelledOn)
-  const showYear = year !== thisYear || hit.dateMark === 'year'
+  const mark = hit.dateMark
+  const showYear = year !== thisYear || mark?.year === true
   const note = j.note !== null && hit.noteMark !== null ? clipNote(j.note, hit.noteMark) : null
 
   return (
@@ -385,8 +387,12 @@ function Row({
           <Marked text={hit.toName} mark={hit.toNameMark} />
         </span>
         <span className="tabular shrink-0 text-xs whitespace-nowrap text-ink-faint">
-          {day} <MarkedWhole on={hit.dateMark === 'month'}>{month}</MarkedWhole>
-          {showYear && <> <MarkedWhole on={hit.dateMark === 'year'}>{year}</MarkedWhole></>}
+          {/* A named day marks day and month as one run — two marks with a
+              gap between them would read as two separate matches. */}
+          {mark?.day === true
+            ? <MarkedWhole on>{day} {month}</MarkedWhole>
+            : <>{day} <MarkedWhole on={mark?.month === true}>{month}</MarkedWhole></>}
+          {showYear && <> <MarkedWhole on={mark?.year === true}>{year}</MarkedWhole></>}
         </span>
       </span>
 
