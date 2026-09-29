@@ -21,6 +21,8 @@ interface Props {
   stations: readonly Station[] | undefined
   /** The user's journeys so far — station search ranks their states up. */
   journeys?: readonly Journey[]
+  /** Seeds "From" — quick find's "+ Log one from here" arrives with a station. */
+  initialFrom?: StationHit | null
   onAdd: (draft: JourneyDraft) => void
   onClose: () => void
 }
@@ -529,12 +531,12 @@ function TrainField({
     </div>
   )
 }
-export function AddJourneyForm({ stations, journeys, onAdd, onClose }: Props) {
+export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, onClose }: Props) {
   const { search } = useStationSearch(stations, journeys)
   const { request, between, loading } = useTrainsBetween()
   const { request: requestTimes, legFor } = useTrainTimes()
 
-  const [from, setFrom] = useState<StationHit | null>(null)
+  const [from, setFrom] = useState<StationHit | null>(initialFrom)
   const [to, setTo] = useState<StationHit | null>(null)
   /* Picking "From" with the keyboard carries on into "To" — the fifteen-second
      path shouldn't need a Tab in the middle of it. Deliberately not done for a

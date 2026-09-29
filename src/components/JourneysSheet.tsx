@@ -6,8 +6,8 @@ import type { Journey } from '@/types/index.ts'
 
 interface Props {
   /** Every journey that shares this route, either direction — not the whole
-      log. There is no "browse everything" entry point; this only opens from
-      a route's own tooltip, already scoped to it. */
+      log. It opens from a route's own tooltip or from a quick-find result,
+      and both scope it to the route before it gets here. */
   journeys: readonly Journey[]
   /** Which of `journeys` was actually clicked/tapped — the pager opens on
       that one rather than always defaulting to the most recent. */

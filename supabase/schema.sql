@@ -32,8 +32,18 @@ create table if not exists journeys (
   created_at    timestamptz not null default now(),
 
   constraint different_stations check (from_code <> to_code),
-  constraint not_in_the_future  check (travelled_on <= current_date)
+  -- A day of slack, not a bug. `current_date` is the server's date, and the
+  -- server runs in UTC: from 00:00 to 05:30 IST it is still yesterday there,
+  -- so a bare `<= current_date` rejected every journey logged for "today" in
+  -- that window. The form's own `max` enforces the real bound in the user's
+  -- timezone; this is only the backstop against dates that are plainly wrong.
+  constraint not_in_the_future  check (travelled_on <= current_date + 1)
 );
+
+-- `create table if not exists` leaves an existing table's constraints alone,
+-- so a database created before the change above needs it applied here too.
+alter table journeys drop constraint if exists not_in_the_future;
+alter table journeys add  constraint not_in_the_future check (travelled_on <= current_date + 1);
 
 create index if not exists journeys_user_date_idx
   on journeys (user_id, travelled_on desc);

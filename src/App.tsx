@@ -3,6 +3,8 @@ import { IndiaMap, type IndiaMapHandle } from '@/features/map/IndiaMap.tsx'
 import { useMapData } from '@/features/map/useMapData.ts'
 import { useJourneys } from '@/features/journeys/useJourneys.ts'
 import { AddJourneyForm } from '@/features/journeys/AddJourneyForm.tsx'
+import { FindJourneySheet } from '@/features/journeys/FindJourneySheet.tsx'
+import type { StationHit } from '@/features/journeys/searchStations.ts'
 import { useAuth } from '@/features/auth/AuthProvider.tsx'
 import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
@@ -63,11 +65,18 @@ export default function App() {
   const mine = store.journeys.length
   const journeys = store.journeys
   const [entryOpen, setEntryOpen] = useState(false)
+  /**
+   * The station quick find's empty state offered to log a journey from — it
+   * prefills the add form's origin. Null every other time the form opens.
+   */
+  const [prefillFrom, setPrefillFrom] = useState<StationHit | null>(null)
+  const [findOpen, setFindOpen] = useState(false)
   const [milestonesOpen, setMilestonesOpen] = useState(false)
   const [railPassOpen, setRailPassOpen] = useState(false)
   /**
    * The route whose tooltip was opened to full detail — there is no
-   * standalone "browse everything" entry point, only a route's own tooltip.
+   * standalone "browse everything" entry point: it opens from a route's own
+   * tooltip, or from a quick-find result, and both set it the same way.
    * Captured as the station pair, not the clicked journey's id: removing
    * that specific journey inside the sheet must not break the lookup for
    * the others still on the same route.
@@ -84,6 +93,51 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey) }
   }, [entryOpen])
+
+  /**
+   * Put focus back on the magnifier when quick find closes.
+   *
+   * Found in the document rather than held in a ref, and that is forced: the
+   * button is one element rendered in two places (like `addJourney`), so a ref
+   * would hold whichever of the two mounted last, and the hidden one cannot
+   * take focus. Both are always mounted — the breakpoint hides one with CSS,
+   * it does not unmount it — so `offsetParent` is what tells them apart.
+   */
+  const focusFindButton = useCallback(() => {
+    for (const el of document.querySelectorAll<HTMLElement>('[data-find-button]')) {
+      if (el.offsetParent !== null) { el.focus(); return }
+    }
+  }, [])
+
+  /*
+   * `/` opens quick find, the convention GitHub, YouTube and Slack share.
+   *
+   * Registered at every width even though the hint inside the input is
+   * pointer-only: a tablet with a keyboard attached is a real case, and a
+   * phone simply never sends the key.
+   *
+   * Three things have to be true. The key must not belong to something the
+   * user is typing into — a station field with focus is the case the PRD calls
+   * out, and `/` is a character someone can legitimately want in a note. It
+   * must not be a shortcut with a modifier on it. And nothing else may be
+   * open: opening a search over the add form would bury the form the user is
+   * halfway through.
+   */
+  useEffect(() => {
+    if (mine === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return
+      const el = e.target
+      if (el instanceof HTMLElement &&
+          (el.isContentEditable || el instanceof HTMLInputElement ||
+           el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) return
+      if (entryOpen || milestonesOpen || railPassOpen || routeTarget || findOpen) return
+      e.preventDefault()
+      setFindOpen(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('keydown', onKey) }
+  }, [mine, entryOpen, milestonesOpen, railPassOpen, routeTarget, findOpen])
   /** Every journey between the same two stations, either direction — a
       round trip traces the same line on the map, so it reads as one route,
       not two. */
@@ -128,7 +182,7 @@ export default function App() {
   const addJourney = (
     <button
       type="button"
-      onClick={() => { setEntryOpen(true) }}
+      onClick={() => { setPrefillFrom(null); setEntryOpen(true) }}
       aria-label={mine === 0 ? 'Add your first journey' : 'Add a journey'}
       title={mine === 0 ? 'Add your first journey' : 'Add a journey'}
       className="flex size-10 items-center justify-center rounded-sm bg-board text-2xl leading-none
@@ -136,6 +190,53 @@ export default function App() {
                  transition-transform duration-150 hover:-translate-y-px active:translate-y-0"
     >
       <span aria-hidden="true">+</span>
+    </button>
+  )
+
+  /*
+   * Quick find — `docs/features/quick-find/`. Declared once and placed twice,
+   * for the same reason `addJourney` is: directly above `+` in the bottom-right
+   * corner on a phone, beside it in the bottom-left stack from `sm` up. Log and
+   * find are the two things anyone does in this app, so they share a column.
+   *
+   * Secondary treatment on purpose. `+` keeps the only yellow fill in that
+   * corner, because there is one primary action and this is not it.
+   *
+   * The button is 44px and the visible square inside it is 40px — same size as
+   * `+`, but with the tap target the design system requires, which a bare 40px
+   * button does not have. The 4px that buys sits inside the button, which is
+   * why the stack below spaces these 6px apart rather than 8: 6 + 2 is the 8px
+   * the two visible squares should have between them.
+   *
+   * Hidden at zero journeys, the way Milestones and Rail pass are: there is
+   * nothing to find, and an icon-only button that opens an empty search is
+   * worse than no button.
+   */
+  const findJourney = (
+    <button
+      type="button"
+      data-find-button
+      onClick={() => { setFindOpen(true) }}
+      aria-label="Find a journey"
+      /* The accessible name stays the label; the title carries the shortcut,
+         which only a device with a pointer ever renders — and only a device
+         with a keyboard can use. */
+      title="Find a journey  /"
+      className="group grid size-11 place-items-center"
+    >
+      <span
+        className="grid size-10 place-items-center rounded-sm border border-line bg-surface text-ink-soft
+                   transition-colors duration-150 group-hover:bg-surface-2 group-hover:text-accent"
+      >
+        {/* Drawn inline at the size it is used, 1.6px stroke, round caps, in
+            currentColor — the design system's rule for a mark that is genuinely
+            needed. There is no icon library in this project and this does not
+            introduce one. */}
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+          <circle cx="6.75" cy="6.75" r="4.75" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          <path d="M10.25 10.25 L14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </span>
     </button>
   )
 
@@ -365,18 +466,36 @@ export default function App() {
           </div>
         )}
 
-        {/* On a phone this button is not here — it is bottom-right, in the
-            corner the map's zoom stack used to hold. Rendered from one
-            `addJourney` element in both places rather than written twice, so
-            the label and the handler cannot drift apart. */}
-        <div className="pointer-events-auto hidden sm:block">{addJourney}</div>
+        {/* On a phone these buttons are not here — they are bottom-right, in
+            the corner the map's zoom stack used to hold. Rendered from one
+            `addJourney` / `findJourney` element in both places rather than
+            written twice, so the labels and the handlers cannot drift apart.
+
+            Side by side here rather than stacked: the pointer makes every
+            corner equal, so the pair reads as a pair on one row, and the
+            column above it stays as short as it was. */}
+        <div className="pointer-events-auto hidden items-center gap-1.5 sm:flex">
+          {addJourney}
+          {mine > 0 && findJourney}
+        </div>
 
       </div>
 
-      {/* Phones only. Same element as the one in the stack above; see
-          `addJourney`. bottom-3 right-3 puts it exactly where the zoom stack
-          was, so the corner keeps a purpose instead of going empty. */}
-      <div className="pointer-events-auto absolute right-3 bottom-3 sm:hidden">{addJourney}</div>
+      {/* Phones only. Same elements as the stack above; see `addJourney` and
+          `findJourney`. bottom-3 right-3 puts them exactly where the zoom
+          stack was, so the corner keeps a purpose instead of going empty.
+
+          Find sits directly above `+`, not below it: `+` stays in the very
+          corner, which is the easiest place on the screen for a thumb, because
+          logging is the primary action and finding is not.
+
+          gap-1.5 (6px), not 8px — `findJourney`'s 44px target carries 2px of
+          padding around its visible 40px square, so 6px here is the 8px the
+          two squares actually show. */}
+      <div className="pointer-events-auto absolute right-3 bottom-3 flex flex-col items-center gap-1.5 sm:hidden">
+        {mine > 0 && findJourney}
+        {addJourney}
+      </div>
 
       {milestonesOpen && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
@@ -405,6 +524,32 @@ export default function App() {
         </div>
       )}
 
+      {/* Rendered before JourneysSheet, and a layer below it: opening a result
+          leaves this sheet mounted underneath, because closing the card has to
+          return to the same results at the same scroll position — which is not
+          something a sheet that unmounted can do. */}
+      {findOpen && (
+        <FindJourneySheet
+          journeys={journeys}
+          data={mapData}
+          cardOpen={routeTarget !== null}
+          onClose={() => { setFindOpen(false); focusFindButton() }}
+          onOpenJourney={(journeyId) => {
+            const opened = journeys.find((j) => j.id === journeyId)
+            if (!opened) return
+            // The same target a tap on the map's line produces, so the card is
+            // scoped to the route rather than to the one journey — see
+            // `routeTarget`.
+            setRouteTarget({ initialJourneyId: journeyId, fromCode: opened.fromCode, toCode: opened.toCode })
+          }}
+          onLogFrom={(station) => {
+            setFindOpen(false)
+            setPrefillFrom(station)
+            setEntryOpen(true)
+          }}
+        />
+      )}
+
       {routeTarget && routeJourneys.length > 0 && (
         <JourneysSheet
           journeys={routeJourneys}
@@ -413,6 +558,10 @@ export default function App() {
           onClose={() => { setRouteTarget(null) }}
           onShowOnMap={(journeyId) => {
             setRouteTarget(null)
+            // Both sheets, not just this one: the point of the map is to look
+            // at it, and leaving a search over the route it just flew to would
+            // hide the thing the button promised.
+            setFindOpen(false)
             mapRef.current?.flyToJourney(journeyId)
           }}
           onRemove={(journeyId) => { store.remove(journeyId) }}
@@ -428,11 +577,13 @@ export default function App() {
             <AddJourneyForm
               stations={mapData?.stations}
               journeys={journeys}
+              initialFrom={prefillFrom}
               onAdd={(draft) => {
                 store.add(draft, mapData?.graph ?? null)
                 setEntryOpen(false)
+                setPrefillFrom(null)
               }}
-              onClose={() => { setEntryOpen(false) }}
+              onClose={() => { setEntryOpen(false); setPrefillFrom(null) }}
             />
           </div>
         </div>
