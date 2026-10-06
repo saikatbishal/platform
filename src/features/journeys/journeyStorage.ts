@@ -76,14 +76,18 @@ export function read(key: string): Journey[] {
   }
 }
 
-export function write(key: string, journeys: readonly Journey[]): void {
+/** True if the rows are now in storage. Callers that clear another copy on
+    the strength of this write must check it. */
+export function write(key: string, journeys: readonly Journey[]): boolean {
   try {
     window.localStorage.setItem(key, JSON.stringify(journeys))
+    return true
   } catch (e) {
     // Full, or storage denied. The journey stays in memory for this session;
     // losing it silently on reload is bad, pretending the write failed the
     // whole action is worse.
     if (import.meta.env.DEV) console.warn('[journeys] could not persist', e)
+    return false
   }
 }
 
@@ -98,21 +102,99 @@ export function write(key: string, journeys: readonly Journey[]): void {
 export const ANON_KEY = keyFor(null)
 
 /**
- * Read the anonymous bucket and clear it in one step.
+ * Read the anonymous bucket; empty it only of what the caller confirms.
  *
- * One step on purpose. Read-then-clear-later leaves a window where a refresh
- * mid-sign-in replays the same journeys into the account a second time, and
- * clearing first loses them all if the write that follows fails. The rows are
- * returned to the caller, which is holding them in memory, and the bucket is
- * emptied only if the caller says the handover succeeded — hence `commit`.
+ * Read-then-clear-later on purpose. Clearing first loses everything if the
+ * upload that follows fails, and that is the bug this used to have in a
+ * subtler form: `commit()` took no argument and emptied the whole bucket, and
+ * its caller could not tell a failed upload from a good one, so a failed
+ * sign-in handover wiped the device copy of journeys that never reached the
+ * server.
+ *
+ * `commit(ids)` now removes exactly the journeys the server confirmed and
+ * keeps the rest, so a partial failure strands nothing: what landed is not
+ * offered again, what didn't is still here for the next sign-in. A refresh
+ * mid-handover replays at most the unconfirmed ones, and the server's upsert
+ * by id makes replaying one harmless.
  */
-export function takeAnon(): { journeys: Journey[]; commit: () => void } {
+export function takeAnon(): { journeys: Journey[]; commit: (confirmedIds: Iterable<string>) => void } {
   const journeys = read(ANON_KEY)
   return {
     journeys,
-    commit: () => {
+    commit: (confirmedIds) => {
       if (journeys.length === 0) return
-      write(ANON_KEY, [])
+      const done = new Set(confirmedIds)
+      if (done.size === 0) return
+      // Re-read rather than filtering the snapshot above: nothing should write
+      // this bucket while someone is signed in, but if anything ever does, the
+      // newer rows must survive this commit.
+      write(ANON_KEY, read(ANON_KEY).filter((j) => !done.has(j.id)))
     },
   }
+}
+
+/**
+ * Take specific journeys out of the signed-out bucket — for a delete made
+ * while signed in, when the account could not be read and the map is showing
+ * the device's signed-out journeys. Without this, deleting one there would
+ * leave it in the bucket and the next sync would send it up again.
+ */
+export function dropAnon(ids: Iterable<string>): void {
+  const done = new Set(ids)
+  if (done.size === 0) return
+  const rows = read(ANON_KEY)
+  const kept = rows.filter((j) => !done.has(j.id))
+  if (kept.length !== rows.length) write(ANON_KEY, kept)
+}
+
+/**
+ * Journeys a signed-in user logged that the server has not confirmed yet.
+ *
+ * A write-ahead log, not an error list. Every signed-in add lands here
+ * *before* the request goes out and leaves only when the server says it has
+ * the row. So closing the tab mid-save, losing signal on a train, or a server
+ * error all end the same way: the journey is still on this device, still on
+ * the map, and re-sent on the next load. Before this, a failed save stayed on
+ * the map until reload and then vanished — the rollback that was meant to
+ * catch it was attached to a promise that never rejected.
+ *
+ * Per user, like everything else here: one person's unsent journeys are never
+ * sent into another's account.
+ */
+export const pendingKeyFor = (userId: string) => `platform.journeys.v1.pending.${userId}`
+
+export function addPending(userId: string, journey: Journey): void {
+  const key = pendingKeyFor(userId)
+  const rows = read(key)
+  if (!rows.some((j) => j.id === journey.id)) write(key, [...rows, journey])
+}
+
+export function dropPending(userId: string, ids: Iterable<string>): void {
+  const done = new Set(ids)
+  if (done.size === 0) return
+  const key = pendingKeyFor(userId)
+  write(key, read(key).filter((j) => !done.has(j.id)))
+}
+
+/**
+ * A v4 uuid wherever the app runs.
+ *
+ * `crypto.randomUUID` exists only in a secure context, so opening the dev
+ * server on a phone over the LAN (plain http) used to fall through to an id
+ * like `jm0x3k…` — which Postgres rejects for a `uuid` column, so every save
+ * from that phone failed. `getRandomValues` is available in insecure contexts
+ * too, and a v4 uuid is nothing more than 122 random bits with the version and
+ * variant set.
+ */
+export function newJourneyId(): string {
+  // A property test, not `'randomUUID' in crypto`: the DOM types say the
+  // method always exists, so an `in` check narrows `crypto` to `never` on the
+  // fallback path — which is exactly the path this function is for.
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const b = new Uint8Array(16)
+  crypto.getRandomValues(b)
+  b[6] = ((b[6] ?? 0) & 0x0f) | 0x40
+  b[8] = ((b[8] ?? 0) & 0x3f) | 0x80
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
 }

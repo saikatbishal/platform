@@ -57,3 +57,38 @@ export function mergeJourneys(
   const added = incoming.filter((i) => !existing.some((e) => sameJourney(e, i)))
   return { merged: [...existing, ...added], added }
 }
+
+/**
+ * What a sign-in (or a retry) must send, given what the server returned and
+ * what this device holds. Pure, for the same reason as `mergeJourneys`: this
+ * is the decision whose bug eats travel, so it is checked in
+ * scripts/check-merge.ts rather than trusted.
+ *
+ * - `pending` is the write-ahead log of signed-in adds. One the server already
+ *   has (by id) landed on an attempt whose reply was lost: stop tracking it.
+ * - `anon` is the signed-out bucket. Merged against the server *and* the
+ *   unsent log, so a trip that exists in either is not sent twice.
+ * - `anonAlreadyThere` are signed-out rows the account already holds as the
+ *   same trip — confirmed by definition, safe to clear from the device.
+ */
+export function planSync(
+  server: readonly Journey[],
+  pending: readonly Journey[],
+  anon: readonly Journey[],
+): {
+  pendingLanded: string[]
+  toSend: Journey[]
+  fromAnon: ReadonlySet<string>
+  anonAlreadyThere: string[]
+} {
+  const onServer = new Set(server.map((j) => j.id))
+  const pendingLanded = pending.filter((j) => onServer.has(j.id)).map((j) => j.id)
+  const unsent = pending.filter((j) => !onServer.has(j.id))
+  // An anon row whose id is already on the server was sent by an earlier
+  // handover whose confirmation never got recorded — not a new trip.
+  const anonFresh = anon.filter((j) => !onServer.has(j.id))
+  const { added } = mergeJourneys([...server, ...unsent], anonFresh)
+  const fromAnon = new Set(added.map((j) => j.id))
+  const anonAlreadyThere = anon.filter((j) => !fromAnon.has(j.id)).map((j) => j.id)
+  return { pendingLanded, toSend: [...unsent, ...added], fromAnon, anonAlreadyThere }
+}
