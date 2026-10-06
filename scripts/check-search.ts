@@ -74,10 +74,36 @@ check('tier 4: train prefix marks from the first digit',
 check('tier 3: a state finds a station whose name lacks it, and says so',
   ids('kerala').join() === kerala.id && hit('kerala', kerala)?.matchedStates[0]?.name === 'Kerala')
 check('a state already visible in a name is not repeated', (hit('delhi', rajdhani)?.matchedStates.length ?? -1) === 0)
-check('tier 2: a year', ids('2025').sort().join() === [assam.id, kerala.id].sort().join() && hit('2025', kerala)?.dateMark === 'year')
+check('tier 2: a year', ids('2025').sort().join() === [assam.id, kerala.id].sort().join() && hit('2025', kerala)?.dateMark?.year === true)
 check('tier 2: sep, sept and september all find September',
-  ['sep', 'sept', 'september'].every((q) => ids(q).join() === rajdhani.id && hit(q, rajdhani)?.dateMark === 'month'))
-check('two letters is not a month — "ma" does not claim March', hit('ma', assam)?.dateMark !== 'month')
+  ['sep', 'sept', 'september'].every((q) => ids(q).join() === rajdhani.id && hit(q, rajdhani)?.dateMark?.month === true))
+check('two letters is not a month — "ma" does not claim March', hit('ma', assam)?.dateMark?.month !== true)
+
+// A day, typed any of the ways people type one. `rajdhani` is 3 Sep 2026.
+{
+  const forms = [
+    '3 sept', '3 sep', '3rd september', '3rd of September', '3sep', '03/09', '3/9', '3.09', '3-9',
+    'sept 3', 'sept 3rd', 'Sep 3rd', 'september 3', '03/09/2026', '3.9.26', '3rd sept 2026', 'sept 3rd, 2026',
+  ]
+  const wrong = forms.filter((q) => ids(q).join() !== rajdhani.id)
+  check(`a day, in all ${forms.length} forms, finds only that day${wrong.length ? ` — failed: ${wrong.join(' | ')}` : ''}`, wrong.length === 0)
+  check('a day with no year matches that day in any year',
+    searchJourneys([rajdhani, j({ travelledOn: '2019-09-03' })], '3 sept', byCode).hits.length === 2)
+  check('a day with the wrong year matches nothing', ids('3/9/2025').length === 0)
+  check('a day marks day and month, and the year only when typed',
+    hit('3 sept', rajdhani)?.dateMark?.day === true && hit('3 sept', rajdhani)?.dateMark?.year === false &&
+    hit('3/9/2026', rajdhani)?.dateMark?.year === true)
+  check('numbers are day first: 09/03 is 9 March, not 3 September',
+    ids('09/03').join() === assam.id)
+  check('a day query alone is a query, not a blank one',
+    searchJourneys(log, '3 sept', byCode).date !== null && searchJourneys(log, '3 sept', byCode).terms.length === 0)
+  check('a day combines with other terms: "howrah 9 march"', ids('howrah 9 march').join() === assam.id)
+  check('a day that does not exist is not a day: 31/02', searchJourneys(log, '31/02', byCode).date === null)
+  check('a train number is not a day', searchJourneys(log, '12626', byCode).date === null && ids('12626').join() === kerala.id)
+  check('a month and a year is not a day: "sep 2026"',
+    searchJourneys(log, 'sep 2026', byCode).date === null && ids('sep 2026').join() === rajdhani.id)
+  check('a number before a non-month word is not a day: "2 bunk"', searchJourneys(log, '2 bunk', byCode).date === null)
+}
 check('tier 1: a word of the note, with the mark on it', (() => {
   const h = hit('bunk', rajdhani)
   return h?.score === 1 && h.noteMark !== null && rajdhani.note?.slice(h.noteMark.start, h.noteMark.end) === 'bunk'

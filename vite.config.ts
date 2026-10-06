@@ -5,14 +5,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
-  // Served at saikatbishal.com/platform, proxied there from the portfolio
-  // site's Vercel project rather than as its own domain.
-  base: '/platform/',
+  // Changed from '/platform/' to './' to generate relative asset links. 
+  // This allows the same build to be served from both a root domain and a subpath.
+  base: './', 
   plugins: [
     react(),
     tailwindcss(),
-    // Installable to the home screen. This is what makes a browser app feel
-    // native enough that most people cannot tell the difference.
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
@@ -20,27 +18,20 @@ export default defineConfig({
         name: 'Platform',
         short_name: 'Platform',
         description: 'Your rail journeys, drawn on a map of India.',
-        // Matches --ground in src/styles/tokens.css. Keep these in sync by hand:
-        // the manifest cannot read CSS variables.
         theme_color: '#0A1C33',
         background_color: '#0A1C33',
         display: 'standalone',
         orientation: 'portrait',
-        // Vite/vite-plugin-pwa infer `scope` from `base` automatically, but
-        // `start_url` doesn't follow — left as "/" it would launch the
-        // portfolio site, not this app, when installed to the home screen.
-        start_url: '/platform/',
+        // Changed from '/platform/' to '.' so the PWA launches relative to 
+        // the domain or subpath it was installed from.
+        start_url: '.', 
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
-          // A separate drawing, not the same file twice: Android crops a
-          // maskable icon to a circle, and the board's white border is the
-          // first thing that would go. This one is inset to 62%.
           { src: 'pwa-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {
-        // The station file is large and immutable once generated — cache it hard.
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         runtimeCaching: [
           {

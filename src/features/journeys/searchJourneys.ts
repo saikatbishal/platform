@@ -48,12 +48,12 @@ export interface JourneyHit {
   toCodeMarked: boolean
   trainMark: MarkRange | null
   /**
-   * Which part of the date matched, rather than a range into it: the row
+   * Which parts of the date matched, rather than a range into it: the row
    * formats the date itself ("12 Sep", "9 Mar 2025"), and a query of `sept`
    * has to mark a printed `Sep` that is shorter than the term that found it.
-   * Naming the part sidesteps that arithmetic entirely.
+   * Naming the parts sidesteps that arithmetic entirely.
    */
-  dateMark: 'year' | 'month' | null
+  dateMark: DateMark | null
   /** Into `journey.note` in full — clip it for display with `clipNote`. */
   noteMark: MarkRange | null
   /**
@@ -64,10 +64,35 @@ export interface JourneyHit {
   matchedStates: Array<{ name: string; mark: MarkRange | null }>
 }
 
+/** A row's date, by part. `day` is only ever set alongside `month`. */
+export interface DateMark {
+  day: boolean
+  month: boolean
+  year: boolean
+}
+
+/**
+ * A calendar day the query named: `19 sept`, `19th september`, `19/09`,
+ * `19.09`, `sept 19th`, with or without a year after it.
+ */
+export interface DayQuery {
+  /** 1–31. */
+  day: number
+  /** 0–11, as `MONTH_NAMES` indexes it. */
+  month: number
+  /** Only when one was typed. Without it, 19 September of every year matches. */
+  year: number | null
+}
+
 export interface JourneySearch {
   hits: JourneyHit[]
-  /** The folded query, deduped. Empty means "no query", not "no matches". */
+  /**
+   * The folded query, deduped, less any day it named — that is in `date`.
+   * The query is blank only when both are empty; a query of just `19/09`
+   * has no terms and is not "no query".
+   */
   terms: string[]
+  date: DayQuery | null
   /**
    * True when `byCode` was not available, so station names and states could
    * not be consulted — tiers 5, 3 and the name half of tier 0 are missing.
@@ -94,7 +119,7 @@ const Tier = {
   TrainPrefix: 4,
   /** A word of either end's state starts with the term — `kera` finds Kerala. */
   StateWord: 3,
-  /** A four-digit year, or a month name by its first three letters or more. */
+  /** A four-digit year, a month name by its first three letters or more, or a day — `19 sept`. */
   Date: 2,
   /** A word of the note starts with the term — `bunk`. */
   NoteWord: 1,
@@ -122,6 +147,73 @@ export const MONTHS_SHORT = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ] as const
+
+/** The month a word names, by three letters or more — `sep`, `sept`, `september` — or -1. */
+function monthOf(word: string): number {
+  if (word.length < 3) return -1
+  return MONTH_NAMES.findIndex((m) => m.startsWith(word))
+}
+
+/*
+ * The three ways a day gets typed. Run against the raw lowercased query, not
+ * the folded one: folding turns `19/09` into the two terms `19` and `09`,
+ * which on their own mean a train number and nothing.
+ *
+ * Numbers are read day first, as they are written in India — `09/10` is the
+ * 9th of October, never September the 10th. A number glued to a digit on
+ * either side is not a day, which is what keeps `12626` a train, and `sep
+ * 2025` a month and a year rather than the 20th of September.
+ */
+const ORDINAL = '(?:st|nd|rd|th)?'
+const YEAR_AFTER = '(?:[\\s,]+(\\d{4}))?'
+const DAY_PATTERNS: ReadonlyArray<{ re: RegExp; read: (m: RegExpExecArray) => ReadonlyArray<string | undefined> }> = [
+  // 19/09, 19.09, 19-09, 19/09/2025, 19.09.25
+  { re: /(?<!\d)(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{4}|\d{2}))?(?![\d/.-])/g, read: (m) => [m[1], m[2], m[3]] },
+  // 19 sept, 19th september, 19sep, 19th of sept 2025
+  {
+    re: new RegExp(`(?<![a-z\\d])(\\d{1,2})${ORDINAL}\\s*(?:of\\s+)?([a-z]+)\\.?${YEAR_AFTER}(?![a-z\\d])`, 'g'),
+    read: (m) => [m[1], m[2], m[3]],
+  },
+  // sept 19, sept 19th, september 19th, 2025
+  {
+    re: new RegExp(`(?<![a-z\\d])([a-z]+)\\.?\\s*(\\d{1,2})${ORDINAL}(?![a-z\\d])${YEAR_AFTER}(?![a-z\\d])`, 'g'),
+    read: (m) => [m[2], m[1], m[3]],
+  },
+]
+
+/**
+ * The first real day named in `query`, and the query with that phrase taken
+ * out so the rest can be searched as terms — `kerala 19 sept` is a Kerala end
+ * AND the 19th of September.
+ *
+ * "Real" is checked, not assumed: `31/02` and `2 bunk` both have the shape of
+ * a day and neither is one, so they fall through and are searched as the
+ * words they are.
+ */
+export function parseDay(query: string): { date: DayQuery; rest: string } | null {
+  const lower = query.toLowerCase()
+  for (const { re, read } of DAY_PATTERNS) {
+    re.lastIndex = 0
+    for (let m = re.exec(lower); m !== null; m = re.exec(lower)) {
+      const [dayText, monthText, yearText] = read(m)
+      if (dayText === undefined || monthText === undefined) continue
+
+      const day = Number(dayText)
+      const month = /^\d+$/.test(monthText) ? Number(monthText) - 1 : monthOf(monthText)
+      const year = yearText === undefined ? null
+        : yearText.length === 2 ? 2000 + Number(yearText) : Number(yearText)
+      if (month < 0 || month > 11 || day < 1) continue
+      // Without a year, 29 February is allowed — a leap year stands in.
+      if (day > new Date(Date.UTC(year ?? 2024, month + 1, 0)).getUTCDate()) continue
+
+      return {
+        date: { day, month, year },
+        rest: `${lower.slice(0, m.index)} ${lower.slice(m.index + m[0].length)}`,
+      }
+    }
+  }
+  return null
+}
 
 /** The fold `searchStations.ts` uses: case, punctuation and spacing all vary. */
 const fold = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
@@ -188,9 +280,24 @@ interface Ctx {
   namesKnown: boolean
   year: string
   monthIndex: number
+  day: number
 }
 
-function dateMark(ctx: Ctx, term: string): 'year' | 'month' | null {
+const onDay = (ctx: Ctx, date: DayQuery) =>
+  ctx.day === date.day && ctx.monthIndex === date.month &&
+  (date.year === null || ctx.year === String(date.year))
+
+/** Every part of the row's date the query touched — the named day, then any year or month term. */
+function dateMarkFor(ctx: Ctx, terms: readonly string[], date: DayQuery | null): DateMark | null {
+  const mark: DateMark = { day: date !== null, month: date !== null, year: date !== null && date.year !== null }
+  for (const term of terms) {
+    const part = datePart(ctx, term)
+    if (part !== null) mark[part] = true
+  }
+  return mark.day || mark.month || mark.year ? mark : null
+}
+
+function datePart(ctx: Ctx, term: string): 'year' | 'month' | null {
   if (/^\d{4}$/.test(term)) return term === ctx.year ? 'year' : null
   // Two letters is not a month, it is half of every word: `ma` would claim
   // March and May and mean neither.
@@ -207,7 +314,7 @@ function tierFor(ctx: Ctx, term: string): Tier | null {
   if (ctx.namesKnown && (hasWord(ctx.fromName, term) || hasWord(ctx.toName, term))) return Tier.NameWord
   if (j.trainNumber !== null && j.trainNumber.toLowerCase().startsWith(term)) return Tier.TrainPrefix
   if (ctx.namesKnown && (hasWord(ctx.fromState, term) || hasWord(ctx.toState, term))) return Tier.StateWord
-  if (dateMark(ctx, term) !== null) return Tier.Date
+  if (datePart(ctx, term) !== null) return Tier.Date
   if (j.note !== null && hasWord(j.note, term)) return Tier.NoteWord
 
   const haystack = (ctx.namesKnown ? `${ctx.fromName} ${ctx.toName} ` : '') + (j.note ?? '')
@@ -228,6 +335,7 @@ function contextFor(journey: Journey, byCode: StationLookup | null): Ctx {
     namesKnown: byCode !== null,
     year: journey.travelledOn.slice(0, 4),
     monthIndex: Number(journey.travelledOn.slice(5, 7)) - 1,
+    day: Number(journey.travelledOn.slice(8, 10)),
   }
 }
 
@@ -272,7 +380,9 @@ export function searchJourneys(
   query: string,
   byCode: StationLookup | null,
 ): JourneySearch {
-  const terms = foldTerms(query)
+  const day = parseDay(query)
+  const date = day?.date ?? null
+  const terms = foldTerms(day?.rest ?? query)
   const degraded = byCode === null
 
   // Sorted before scoring rather than after, so the date tie-break falls out
@@ -283,7 +393,9 @@ export function searchJourneys(
   for (const journey of byDate) {
     const ctx = contextFor(journey, byCode)
 
-    let score = 0
+    // A named day is one more AND-ed condition, worth what any date term is.
+    if (date !== null && !onDay(ctx, date)) continue
+    let score = date === null ? 0 : Tier.Date
     let matched = true
     for (const term of terms) {
       const tier = tierFor(ctx, term)
@@ -303,14 +415,14 @@ export function searchJourneys(
       fromCodeMarked: terms.includes(journey.fromCode.toLowerCase()),
       toCodeMarked: terms.includes(journey.toCode.toLowerCase()),
       trainMark: trainMarkFor(journey.trainNumber, terms),
-      dateMark: terms.reduce<'year' | 'month' | null>((found, term) => found ?? dateMark(ctx, term), null),
+      dateMark: dateMarkFor(ctx, terms, date),
       noteMark: journey.note === null ? null : markIn(journey.note, terms, true),
       matchedStates: statesToShow(ctx, terms),
     })
   }
 
   hits.sort((a, b) => b.score - a.score || b.journey.travelledOn.localeCompare(a.journey.travelledOn))
-  return { hits, terms, degraded }
+  return { hits, terms, date, degraded }
 }
 
 /** Roughly one line of note at `--text-xs` on a 360px row. */
