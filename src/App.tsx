@@ -14,6 +14,8 @@ import { formatKm } from '@/lib/distance.ts'
 import { evaluateMilestones } from '@/features/stats/milestones.ts'
 import { Milestones } from '@/features/stats/Milestones.tsx'
 import { RailPass } from '@/features/railpass/RailPass.tsx'
+import { StatNumber } from '@/features/stats/StatNumber.tsx'
+import { createTally, type Totals } from '@/features/stats/tally.ts'
 
 interface Stats {
   km: number
@@ -27,9 +29,25 @@ interface Stats {
   uncounted: number
 }
 
+/* The figures as the tiles print them. Module-level so StatNumber gets the
+   same function every render; it calls them once per frame while counting. */
+const kmFigure = (n: number) => formatKm(n).replace(' km', '')
+const countFigure = (n: number) => Math.round(n).toLocaleString('en-IN')
+
+/** The four tiles, in order: label, which total, how to print it. */
+const TILES = [
+  ['Kilometres', 'km', kmFigure],
+  ['Stations', 'stations', countFigure],
+  ['States', 'states', countFigure],
+  ['Longest', 'longestKm', kmFigure],
+] as const satisfies ReadonlyArray<readonly [string, keyof Totals, (n: number) => string]>
+
 export default function App() {
   const [stats, setStats] = useState<Stats>({ km: 0, longestKm: 0, stations: 0, states: 0, uncounted: 0 })
   const onStats = useCallback((s: Stats) => { setStats(s) }, [])
+  // The map's per-frame totals while routes draw in, straight to the tiles —
+  // see features/stats/tally.ts for why this is not React state.
+  const [tally] = useState(createTally)
   // Loaded here rather than inside IndiaMap so there is exactly one fetch of
   // the 8,696 stations and the rail graph for the whole app — the map draws
   // from it, and the add-journey flow will search the same station list.
@@ -249,6 +267,7 @@ export default function App() {
         error={mapError}
         loadDistricts={loadDistricts}
         onStats={onStats}
+        onTally={tally.emit}
         onOpenJourneyModal={(journeyId) => {
           const clicked = journeys.find((j) => j.id === journeyId)
           if (!clicked) return
@@ -349,9 +368,13 @@ export default function App() {
             <span className="hidden text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5 sm:inline">
               Kilometres
             </span>
-            <span className="hidden tabular text-sm leading-none text-cream sm:inline sm:text-xl">
-              {formatKm(stats.km).replace(' km', '')}
-            </span>
+            <StatNumber
+              tally={tally}
+              field="km"
+              value={stats.km}
+              format={kmFigure}
+              className="hidden tabular text-sm leading-none text-cream sm:inline sm:text-xl"
+            />
             <span aria-hidden="true" className="ml-auto text-ink-faint sm:hidden">
               {statsExpanded ? '▾' : '▸'}
             </span>
@@ -360,12 +383,7 @@ export default function App() {
               button above no longer shows its value when collapsed, so it has
               to appear somewhere once expanded. sm:hidden unconditionally:
               this list is never the desktop presentation, the row below is. */}
-          {([
-            ['Kilometres', formatKm(stats.km).replace(' km', '')],
-            ['Stations', stats.stations.toLocaleString('en-IN')],
-            ['States', String(stats.states)],
-            ['Longest', formatKm(stats.longestKm).replace(' km', '')],
-          ] as const).map(([label, value]) => (
+          {TILES.map(([label, field, format]) => (
             <div
               key={label}
               className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:hidden`}
@@ -374,18 +392,20 @@ export default function App() {
                 {label}
               </span>
               <span className="text-ink-faint">–</span>
-              <span className="tabular text-sm leading-none text-cream">{value}</span>
+              <StatNumber
+                tally={tally}
+                field={field}
+                value={stats[field]}
+                format={format}
+                className="tabular text-sm leading-none text-cream"
+              />
             </div>
           ))}
           {/* Desktop row: Kilometres already has its own column via the
               button, so only the other three repeat here — always visible,
               never gated on statsExpanded, which does not exist as a concept
               at this width. Unchanged from before this edit. */}
-          {([
-            ['Stations', stats.stations.toLocaleString('en-IN')],
-            ['States', String(stats.states)],
-            ['Longest', formatKm(stats.longestKm).replace(' km', '')],
-          ] as const).map(([label, value]) => (
+          {TILES.slice(1).map(([label, field, format]) => (
             <div
               key={label}
               className="hidden items-baseline gap-1.5 border-line px-3 py-2 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-r sm:py-3 sm:last:border-r-0"
@@ -393,7 +413,13 @@ export default function App() {
               <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
                 {label}
               </span>
-              <span className="tabular text-sm leading-none text-cream sm:text-xl">{value}</span>
+              <StatNumber
+                tally={tally}
+                field={field}
+                value={stats[field]}
+                format={format}
+                className="tabular text-sm leading-none text-cream sm:text-xl"
+              />
             </div>
           ))}
           {stats.uncounted > 0 && (

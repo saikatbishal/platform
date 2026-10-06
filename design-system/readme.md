@@ -205,6 +205,26 @@ phase, with an `≈` button that pauses all of it (an autoplaying loop longer
 than 5s needs an explicit stop). A `prefers-reduced-motion` block collapses
 every animation and transition to 0.01ms.
 
+One exception plays once rather than looping: **routes draw themselves in.**
+On load every journey's line grows from its origin along its own track,
+oldest first and newest last, 700ms each on an ease-in-out curve (a train
+pulls away and brakes), staggered up to 120ms apart so the whole sequence
+lands by 1.2s however long the log is. Each endpoint fades in over 150ms as
+its line reaches it, along with its name. Each state fills over 400ms,
+easing out, the moment the first line enters it — `--land` to
+`--land-visited`, mixed in OKLab — so the map shows where you have been in
+the order you got there instead of giving it away before a line has moved;
+the latest journey's destination wash waits for that line to arrive. The
+stat tiles count with it, frame for frame: kilometres as the lines are laid,
+stations as they are reached, states as they start to fill — they always
+agree with the map, and land on the totals as the last line does. Any other
+change to a total counts over 300ms, easing out, on tabular figures. A
+journey logged later draws in the
+same way, alone — that line crossing the country is the reward for logging
+it. Inferred routes keep their dashes while they grow; the line is cut by
+length, never masked. Reduced motion skips all of it, and the lines are
+simply there. (`src/features/map/drawIn.ts`, `useDrawIn.ts`.)
+
 ### Interaction states
 
 **Hover** lifts the fill one step (`--surface` → `--surface-2`) and turns the

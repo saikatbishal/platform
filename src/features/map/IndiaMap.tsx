@@ -8,8 +8,10 @@ import { placeLabels, type LabelCandidate } from './labels.ts'
 import { describeRouteFailure } from './route.ts'
 import { useTrainStops } from './useTrainStops.ts'
 import { useJourneyRoutes } from './useJourneyRoutes.ts'
+import { useDrawIn } from './useDrawIn.ts'
 import { RouteTooltip } from './RouteTooltip.tsx'
 import type { Journey } from '@/types/index.ts'
+import type { Totals } from '@/features/stats/tally.ts'
 
 interface Props {
   journeys: readonly Journey[]
@@ -23,6 +25,9 @@ interface Props {
   loadDistricts?: () => void
   /** Called whenever the derived totals change, so the page can show them. */
   onStats?: (stats: { km: number; longestKm: number; stations: number; states: number; uncounted: number }) => void
+  /** The same totals as drawn so far, every frame while routes draw in, then
+      `null`. For the stat tiles to count up with the lines; see useDrawIn. */
+  onTally?: (totals: Totals | null) => void
   /** A route was asked to open its full detail — a click on a mouse-capable
       device, or a second tap on an already-open tooltip on a touch one. The
       page owns what "full detail" means (the Journeys sheet, filtered to
@@ -48,7 +53,7 @@ export interface IndiaMapHandle {
  * Putting the canvas underneath the land — the obvious "backdrop" instinct —
  * hides the station dots everywhere except over the sea.
  */
-export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpenJourneyModal, ref }: Props) {
+export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTally, onOpenJourneyModal, ref }: Props) {
   // Static for the life of the tab — device capability doesn't change
   // mid-session, so this is read once rather than tracked as state. Decides
   // whether a click on a route jumps straight to the full-detail modal
@@ -91,6 +96,11 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
   const labelRefs = useRef<Array<SVGGElement | null>>([])
   const railRefs = useRef<Array<SVGPathElement | null>>([])
   const stopRefs = useRef<Array<SVGCircleElement | null>>([])
+  const exactPath = useRef<SVGPathElement>(null)
+  const inferredPath = useRef<SVGPathElement>(null)
+  const latestPath = useRef<SVGPathElement>(null)
+  const stateRefs = useRef(new Map<string, SVGPathElement>())
+  const destinationPath = useRef<SVGPathElement>(null)
 
   const [tier, setTier] = useState<LodTier>(LOD_TIERS[0]!)
   const tierRef = useRef(tier)
@@ -262,12 +272,12 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
     if (!data) return []
     const seen = new Map<
       string,
-      { x: number; y: number; name: string; last: boolean; unroutable: boolean }
+      { code: string; x: number; y: number; name: string; last: boolean; unroutable: boolean }
     >()
     for (const j of journeys) {
       for (const code of [j.fromCode, j.toCode]) {
         const s = data.byCode.get(code)
-        if (s) seen.set(code, { x: s.x, y: s.y, name: s.name, last: false, unroutable: unroutableCodes.has(code) })
+        if (s) seen.set(code, { code, x: s.x, y: s.y, name: s.name, last: false, unroutable: unroutableCodes.has(code) })
       }
     }
     // Marked after the loop, not inside it: a later journey passing back
@@ -278,6 +288,22 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
     if (here) here.last = true
     return [...seen.values()]
   }, [data, journeys, unroutableCodes, latestJourney])
+
+  useDrawIn({
+    routes: routesForDisplay,
+    merged: mergedRoutes,
+    latestId: latestJourney?.id ?? null,
+    journeys,
+    endpoints,
+    paths: { exact: exactPath, inferred: inferredPath, latest: latestPath },
+    stopRefs,
+    labelRefs,
+    // labelCandidates is cities, then endpoints, in that order.
+    labelOffset: data?.cities.length ?? 0,
+    stateRefs,
+    destination: destinationPath,
+    onTally,
+  })
 
   useEffect(() => {
     if (!data || !onStats) return
@@ -633,6 +659,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
           {data.states.map((s) => (
             <path
               key={s.name}
+              ref={(el) => { if (el) stateRefs.current.set(s.name, el); else stateRefs.current.delete(s.name) }}
               d={s.d}
               /* Down only, resolved by the stage's own pointerup — the same
                  reason the route halos do it this way, spelled out in full
@@ -668,6 +695,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
               with a tap. */}
           {destinationStateShape && (
             <path
+              ref={destinationPath}
               d={destinationStateShape.d}
               fillOpacity={0.08}
               strokeOpacity={0.7}
@@ -816,12 +844,12 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
                 true one. Dashed goes underneath so that where a guess and a
                 record share track, the record is what shows. */}
             {mergedRoutes.inferred && (
-              <path d={mergedRoutes.inferred} fill="none"
+              <path ref={inferredPath} d={mergedRoutes.inferred} fill="none"
                 className="stroke-route-taken [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]"
                 strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
             {mergedRoutes.exact && (
-              <path d={mergedRoutes.exact} fill="none"
+              <path ref={exactPath} d={mergedRoutes.exact} fill="none"
                 className="stroke-route-taken [vector-effect:non-scaling-stroke]"
                 strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
@@ -830,7 +858,7 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onOpen
                 gone with the rest — and together with the you-are-here dot at
                 its end it is enough to find it without shouting. */}
             {mergedRoutes.latest && (
-              <path d={mergedRoutes.latest.d} fill="none"
+              <path ref={latestPath} d={mergedRoutes.latest.d} fill="none"
                 className={`stroke-route-taken [vector-effect:non-scaling-stroke]${
                   mergedRoutes.latest.exact ? '' : ' [stroke-dasharray:6_4]'
                 }`}

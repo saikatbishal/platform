@@ -7,6 +7,15 @@ export interface JourneyRoute {
   id: string
   /** SVG path `d`, in the same projected map space as `MapData.states`. */
   d: string
+  /** The vertices of `d`, at the same one-decimal precision, for anything
+      that needs to measure along the line — the draw-in cuts it by length. */
+  points: ReadonlyArray<readonly [number, number]>
+  /** The state each of `points` is in, index for index — so the draw-in can
+      tell which state a growing line has just entered. */
+  pointStates: readonly string[]
+  /** The station at each of `points`, likewise — the subset of `stops` that
+      could be placed, in order. */
+  pointCodes: readonly string[]
   km: number
   stops: string[]
   exact: boolean
@@ -49,9 +58,17 @@ export function useJourneyRoutes(
         continue
       }
       const pts: string[] = []
+      const points: Array<readonly [number, number]> = []
+      const pointStates: string[] = []
+      const pointCodes: string[] = []
       for (const code of result.codes) {
         const s = data.byCode.get(code)
-        if (s) pts.push(`${s.x.toFixed(1)},${s.y.toFixed(1)}`)
+        if (!s) continue
+        const x = s.x.toFixed(1), y = s.y.toFixed(1)
+        pts.push(`${x},${y}`)
+        points.push([Number(x), Number(y)])
+        pointStates.push(s.state)
+        pointCodes.push(code)
       }
       if (pts.length < 2) {
         failures.push({
@@ -60,7 +77,7 @@ export function useJourneyRoutes(
         })
         continue
       }
-      routes.push({ id: j.id, d: `M${pts.join('L')}`, km: result.km, stops: result.codes, exact })
+      routes.push({ id: j.id, d: `M${pts.join('L')}`, points, pointStates, pointCodes, km: result.km, stops: result.codes, exact })
     }
     return { routes, failures }
   }, [data, journeys, trainStops])
