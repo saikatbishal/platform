@@ -5,9 +5,13 @@ import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
-  // Changed from '/platform/' to './' to generate relative asset links. 
-  // This allows the same build to be served from both a root domain and a subpath.
-  base: './', 
+  // Relative, so one build serves both platform.saikatbishal.com/ and
+  // saikatbishal.com/platform/ (proxied there by the portfolio's vercel.json).
+  // The cost: every asset and fetch resolves against the page URL, so the
+  // subpath only works with its trailing slash — at /platform, ./assets/x.js
+  // becomes /assets/x.js, which is the portfolio's catch-all, and the page is
+  // blank. The portfolio redirects /platform → /platform/ for exactly this.
+  base: './',
   plugins: [
     react(),
     tailwindcss(),

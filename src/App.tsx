@@ -570,10 +570,7 @@ export default function App() {
 
       {railPassOpen && mapData && (
         <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
-            <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
-              Rail pass
-            </h2>
+          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-xl sm:rounded-lg">
             <RailPass
               data={mapData}
               journeys={journeys}
