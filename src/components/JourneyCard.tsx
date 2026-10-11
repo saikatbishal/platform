@@ -96,7 +96,7 @@ export function JourneyCard({ journey, route, fromName, toName, onShowOnMap, onR
               type="button"
               onClick={onShowOnMap}
               disabled={!route}
-              className="min-h-11 flex-1 rounded-sm bg-accent px-4 text-label font-semibold tracking-label text-board-ink uppercase disabled:opacity-40"
+              className="min-h-11 flex-1 rounded-sm bg-accent px-4 text-label font-semibold tracking-label text-ground uppercase disabled:opacity-40"
             >
               Show on map
             </button>
