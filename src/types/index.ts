@@ -27,8 +27,16 @@ export interface Journey {
   /** Free text on purpose: the schedule data is dated, so a strict list would reject real trains. */
   trainNumber: string | null
   note: string | null
-  /** Great-circle km, computed on write. Undercounts, because track curves. */
-  distanceKm: number
+  /**
+   * Rail km along the routed path, computed when the journey is logged. Null
+   * when it could not be — the rail graph had not loaded yet, or has no route
+   * between the two — because 0 is a distance and this is not one.
+   *
+   * Nothing on screen reads this: every figure is routed afresh from the
+   * graph (IndiaMap's totals, the card, quick find), and an unroutable
+   * journey is counted under "Not drawn". It is the copy the account keeps.
+   */
+  distanceKm: number | null
   /**
    * "HH:MM", both optional and independent of each other. Not derived from
    * the timetable: a real train's actual arrival is what the "over 24h"

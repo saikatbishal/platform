@@ -28,7 +28,10 @@ function fromPgRow(row: Record<string, unknown>): Journey | null {
     travelledOn: row.travelled_on as string,
     trainNumber: (row.train_number as string) || null,
     note: (row.note as string) || null,
-    distanceKm: Number(row.distance_km),
+    // `numeric` arrives as a string or a number depending on the driver; null
+    // stays null. `Number(null)` is 0, which is how an unknown distance used
+    // to come back as a real one.
+    distanceKm: row.distance_km === null || row.distance_km === undefined ? null : Number(row.distance_km),
     departureTime: (row.departure_time as string) || null,
     arrivalTime: (row.arrival_time as string) || null,
     arrivalDayOffset: (row.arrival_day_offset as number) ?? 0,
@@ -67,7 +70,18 @@ const NOT_CONFIGURED = { ok: false, error: 'Supabase is not configured' } as con
  * "has nothing" — that is how a network blip at sign-in used to hide an
  * account's whole history and upload the device's journeys into it blind.
  */
-export async function readFromSupabase(userId: string): Promise<SyncResult<Journey[]>> {
+export interface AccountRead {
+  journeys: Journey[]
+  /**
+   * Rows the account holds that this build cannot read — a shape it does not
+   * know, or a value edited in by hand. Left on the server untouched and kept
+   * off the map, but counted, because a journey that silently is not there is
+   * the one thing this app promises not to do.
+   */
+  unreadable: number
+}
+
+export async function readFromSupabase(userId: string): Promise<SyncResult<AccountRead>> {
   if (!supabase) return NOT_CONFIGURED
   try {
     const { data, error } = await supabase
@@ -79,9 +93,9 @@ export async function readFromSupabase(userId: string): Promise<SyncResult<Journ
     const rows = (data ?? []).map((row) => fromPgRow(row as Record<string, unknown>))
     const good = rows.filter((j): j is Journey => j !== null)
     if (import.meta.env.DEV && good.length !== rows.length) {
-      console.warn(`[journeys] ${rows.length - good.length} server rows failed validation`)
+      console.warn(`[journeys] ${rows.length - good.length} server rows failed validation`, data)
     }
-    return { ok: true, value: good }
+    return { ok: true, value: { journeys: good, unreadable: rows.length - good.length } }
   } catch (e) {
     // supabase-js returns most failures as `error`, but a fetch that never
     // got a response (offline, DNS, CORS) can still throw.

@@ -43,7 +43,7 @@ export function isJourney(x: unknown): x is Journey {
     typeof j['travelledOn'] === 'string' &&
     (typeof j['trainNumber'] === 'string' || j['trainNumber'] === null) &&
     (typeof j['note'] === 'string' || j['note'] === null) &&
-    typeof j['distanceKm'] === 'number' && Number.isFinite(j['distanceKm']) &&
+    (j['distanceKm'] === null || (typeof j['distanceKm'] === 'number' && Number.isFinite(j['distanceKm']))) &&
     // Journeys stored before departure/arrival times existed have none of
     // these three keys at all — `undefined` is accepted here as "old row",
     // and read() below fills in the honest default before it goes anywhere.

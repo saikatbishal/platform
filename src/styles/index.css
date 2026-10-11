@@ -193,6 +193,22 @@
   .sea-paused :is(.sea-wave, .sea-dot) { animation-play-state: paused; }
 }
 
+/* A toast arrives from the edge it is pinned to — down from the top on a
+   phone, up from the bottom from `sm` (40rem) up — over the 150ms every
+   other transition here takes, and 4px rather than its own height: it is a
+   message settling into place, not a panel sliding in. No exit motion; it
+   goes the way the sync banner goes. Reduced motion collapses this with
+   everything else. */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(var(--toast-from)); }
+}
+@layer components {
+  .toast { --toast-from: -4px; animation: toast-in 150ms ease-out; }
+  @media (width >= 40rem) {
+    .toast { --toast-from: 4px; }
+  }
+}
+
 /* Numbers must not jitter as they count up, and they are set in Plex Mono —
    a mono face makes a changing digit hold its column by construction rather
    than by asking a proportional face nicely.
