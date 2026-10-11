@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase.ts'
+import { getSupabase } from '@/lib/supabase.ts'
 import type { Journey } from '@/types/index.ts'
 import { isJourney } from './journeyStorage.ts'
 
@@ -82,8 +82,9 @@ export interface AccountRead {
 }
 
 export async function readFromSupabase(userId: string): Promise<SyncResult<AccountRead>> {
-  if (!supabase) return NOT_CONFIGURED
   try {
+    const supabase = await getSupabase()
+    if (!supabase) return NOT_CONFIGURED
     const { data, error } = await supabase
       .from('journeys')
       .select('*')
@@ -98,7 +99,8 @@ export async function readFromSupabase(userId: string): Promise<SyncResult<Accou
     return { ok: true, value: { journeys: good, unreadable: rows.length - good.length } }
   } catch (e) {
     // supabase-js returns most failures as `error`, but a fetch that never
-    // got a response (offline, DNS, CORS) can still throw.
+    // got a response (offline, DNS, CORS) can still throw — and so can
+    // loading the client itself, which is now its own file (getSupabase).
     return fail(e)
   }
 }
@@ -118,8 +120,9 @@ export async function readFromSupabase(userId: string): Promise<SyncResult<Accou
  * row, or already had a row with this id — which can only be this journey.
  */
 export async function addToSupabase(userId: string, journey: Journey): Promise<SyncResult<Journey>> {
-  if (!supabase) return NOT_CONFIGURED
   try {
+    const supabase = await getSupabase()
+    if (!supabase) return NOT_CONFIGURED
     const { error } = await supabase
       .from('journeys')
       .upsert({ ...toPgRow(journey), user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
@@ -135,8 +138,9 @@ export async function addToSupabase(userId: string, journey: Journey): Promise<S
  * succeeds — the end state the caller asked for is true either way.
  */
 export async function removeFromSupabase(userId: string, journeyId: string): Promise<SyncResult<null>> {
-  if (!supabase) return NOT_CONFIGURED
   try {
+    const supabase = await getSupabase()
+    if (!supabase) return NOT_CONFIGURED
     const { error } = await supabase
       .from('journeys')
       .delete()

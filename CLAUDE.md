@@ -135,7 +135,12 @@ Read auth through `useAuth()` from `features/auth/AuthProvider.tsx` — one
 subscription for the tree. `useAuthState()` is the implementation; calling it
 twice opens two Supabase listeners that can disagree.
 
-`supabase` (the client) is `null` when unconfigured; guard any new usage, and
+The client comes from `await getSupabase()` in `src/lib/supabase.ts`, which
+loads supabase-js on first call — it is its own file, kept off the first paint
+(it was half the bundle). Never import `@supabase/supabase-js` statically
+outside a `type` import, or it rejoins the main chunk. `getSupabase()` resolves
+`null` when unconfigured and rejects if the file fails to load; check
+`isSupabaseConfigured` for the mode synchronously, handle both outcomes, and
 give the demo path a real implementation rather than an empty branch. The
 switch-on procedure is `docs/09-auth-go-live.md`.
 
