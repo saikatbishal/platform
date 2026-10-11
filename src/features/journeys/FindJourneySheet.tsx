@@ -5,6 +5,7 @@ import { useStationSearch } from './useStationSearch.ts'
 import type { StationHit } from './searchStations.ts'
 import { useJourneyRoutes } from '@/features/map/useJourneyRoutes.ts'
 import { formatKm } from '@/lib/distance.ts'
+import { useScrimDismiss } from '@/components/useScrimDismiss.ts'
 import type { MapData } from '@/features/map/useMapData.ts'
 import type { Journey } from '@/types/index.ts'
 
@@ -118,6 +119,7 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
 
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const scrim = useScrimDismiss(onClose)
 
   /* Focused on open: the keyboard comes up with the sheet, and its arrival is
      the transition — there is no slide. */
@@ -212,7 +214,7 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
   return (
     <div
       className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center sm:items-center sm:bg-ground/60 sm:p-4 sm:backdrop-blur-[2px]"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      {...scrim}
     >
       <div
         role="dialog"

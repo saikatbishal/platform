@@ -10,6 +10,7 @@ import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
 import { JourneysSheet } from '@/components/JourneysSheet.tsx'
 import { Toaster } from '@/components/Toaster.tsx'
+import { useScrimDismiss } from '@/components/useScrimDismiss.ts'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
 import { formatKm } from '@/lib/distance.ts'
 import { evaluateMilestones } from '@/features/stats/milestones.ts'
@@ -102,6 +103,7 @@ export default function App() {
    */
   const [routeTarget, setRouteTarget] = useState<{ initialJourneyId: string; fromCode: string; toCode: string } | null>(null)
   const mapRef = useRef<IndiaMapHandle>(null)
+  const entryScrim = useScrimDismiss(() => { setEntryOpen(false); setPrefillFrom(null) })
 
   /* Escape closes the entry sheet, the way it already closes JourneysSheet.
      A station field with its list open swallows the key first — closing the
@@ -626,8 +628,15 @@ export default function App() {
         />
       )}
 
+      {/* A tap on the scrim closes the form, as it does the other sheets —
+          see useScrimDismiss for why only a press that starts and ends there.
+          Not `onBlur`: focus leaves the form legitimately mid-entry — to the
+          date picker, the time pickers, a station result. */}
       {entryOpen && (
-        <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
+        <div
+          className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+          {...entryScrim}
+        >
           <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
             <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
               Add a journey

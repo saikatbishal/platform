@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type TouchEvent } from 'react'
 import { useJourneyRoutes } from '@/features/map/useJourneyRoutes.ts'
 import { JourneyCard } from './JourneyCard.tsx'
+import { useScrimDismiss } from './useScrimDismiss.ts'
 import type { MapData } from '@/features/map/useMapData.ts'
 import type { Journey } from '@/types/index.ts'
 
@@ -51,6 +52,7 @@ export function JourneysSheet({ journeys, initialJourneyId, data, onClose, onSho
     return () => { window.removeEventListener('keydown', onKey) }
   }, [onClose])
 
+  const scrim = useScrimDismiss(onClose)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const onTouchStart = (e: TouchEvent) => {
     const t = e.touches[0]
@@ -71,7 +73,7 @@ export function JourneysSheet({ journeys, initialJourneyId, data, onClose, onSho
   return (
     <div
       className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center sm:items-center sm:bg-ground/60 sm:p-4 sm:backdrop-blur-[2px]"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      {...scrim}
     >
       <div className="flex h-full w-full flex-col overflow-hidden bg-surface sm:aspect-square sm:h-auto sm:max-h-full sm:max-w-[452px] sm:rounded-lg sm:border sm:border-line sm:shadow-2xl">
         <header className="flex shrink-0 items-center justify-between border-b border-line px-5 py-4">
