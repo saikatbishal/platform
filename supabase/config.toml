@@ -11,7 +11,10 @@ project_id = "platform"
 site_url = "http://localhost:5173"
 additional_redirect_urls = [
   "http://localhost:5173",
-  "https:saikatbishal.com/platform",
+  # Both doors to the same build: the portfolio's proxy (bare
+  # saikatbishal.com redirects to www) and the subdomain it proxies to.
+  "https://www.saikatbishal.com/platform/**",
+  "https://platform.saikatbishal.com/**",
   # "https://*-YOUR_VERCEL_TEAM.vercel.app",
 ]
 jwt_expiry = 3600

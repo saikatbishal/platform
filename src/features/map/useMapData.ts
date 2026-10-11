@@ -66,9 +66,12 @@ interface StateProps { st_nm?: string }
 interface DistrictProps { district?: string; st_nm?: string }
 
 /**
- * BASE_URL is "/platform/" in production (this app is served at
- * saikatbishal.com/platform), so a hardcoded "/maps/..." fetch would miss
- * the prefix and hit the portfolio site's own routes instead.
+ * BASE_URL is "./" in production (vite.config.ts), so these fetches resolve
+ * against the page: /platform/maps/... through the portfolio's proxy,
+ * /maps/... on platform.saikatbishal.com. A hardcoded "/maps/..." would hit
+ * the portfolio's own routes from the proxy. Relative also means the page URL
+ * must end in a slash — /platform without one resolves to /maps/... — which
+ * is why the portfolio redirects /platform to /platform/.
  */
 async function getJson<T>(path: string): Promise<T> {
   const url = `${import.meta.env.BASE_URL}${path}`
