@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { routeForJourney, type RailGraph } from '@/features/map/route.ts'
 import { isSupabaseConfigured } from '@/lib/supabase.ts'
 import {
@@ -6,6 +6,7 @@ import {
 } from './journeyStorage.ts'
 import { mergeJourneys, planSync } from './mergeJourneys.ts'
 import { addToSupabase, readFromSupabase, removeFromSupabase } from './journeyStorageSupabase.ts'
+import { showToast } from '@/components/toast.ts'
 import type { Journey, JourneyDraft } from '@/types/index.ts'
 
 /**
@@ -50,6 +51,14 @@ export function useJourneys(userId: string | null): JourneyStore {
   /** Bumped by `retry()` and by the browser coming back online; the sync
       effect below re-runs on it. */
   const [attempt, setAttempt] = useState(0)
+  /** `${userId}:${count}` of the unreadable-rows message last shown, so a
+      reconnect that reads the same account again does not raise it again. */
+  const toldUnreadable = useRef<string | null>(null)
+  /** The last server write queued for each journey id — see `inOrder`. */
+  const writes = useRef(new Map<string, Promise<unknown>>())
+  /** Ids whose delete was undone while the delete was still in flight, so
+      its failure handler knows the journey is already back. */
+  const undone = useRef(new Set<string>())
 
   /*
    * userId changed — immediately clear to [] to stop the previous user's
@@ -110,7 +119,19 @@ export function useJourneys(userId: string | null): JourneyStore {
         return
       }
 
-      const server = res.value
+      const server = res.value.journeys
+      const { unreadable } = res.value
+      const told = `${userId}:${unreadable}`
+      if (unreadable === 0) toldUnreadable.current = null
+      else if (toldUnreadable.current !== told) {
+        toldUnreadable.current = told
+        showToast({
+          id: 'journeys-unreadable',
+          message: unreadable === 1
+            ? 'One journey in your account couldn’t be read by this version of the app, so it isn’t on the map. It’s still in your account — nothing was deleted.'
+            : `${unreadable} journeys in your account couldn’t be read by this version of the app, so they aren’t on the map. They’re still in your account — nothing was deleted.`,
+        })
+      }
       const { journeys: anon, commit } = takeAnon()
       const { pendingLanded, toSend, fromAnon, anonAlreadyThere } = planSync(server, pending, anon)
       // Pending journeys the server already has landed on an attempt whose
@@ -132,7 +153,7 @@ export function useJourneys(userId: string | null): JourneyStore {
       const confirmedAnon: string[] = [...anonAlreadyThere]
       for (const j of toSend) {
         if (stale) break
-        const sent = await addToSupabase(userId, j)
+        const sent = await inOrder(writes.current, j.id, () => addToSupabase(userId, j))
         if (!sent.ok) {
           if (import.meta.env.DEV) console.warn(`[journeys] ${j.fromCode}–${j.toCode} not sent:`, sent.error)
           continue
@@ -189,25 +210,23 @@ export function useJourneys(userId: string | null): JourneyStore {
     setStore((prev) => (prev.userId === userId ? { ...prev, journeys: merged, loaded: true } : prev))
   }, [userId, useSupabase])
 
-  const add = useCallback(
-    (draft: JourneyDraft, graph: RailGraph | null, trainStops?: readonly string[]) => {
-      let distanceKm = 0
-      if (graph) {
-        const { result } = routeForJourney(graph, draft.fromCode, draft.toCode, trainStops)
-        if (result) distanceKm = Math.round(result.km * 10) / 10
-      }
-      const journey: Journey = { ...draft, id: newJourneyId(), distanceKm }
-
+  /**
+   * Put one journey on the map and into storage — a new one, or one coming
+   * back from an undone delete with its id intact. Does nothing if it is
+   * already there.
+   */
+  const put = useCallback(
+    (journey: Journey) => {
       if (useSupabase && userId) {
         // Written to the pending log BEFORE the request, so there is no
         // instant at which this journey exists only in memory.
         addPending(userId, journey)
         setStore((prev) =>
-          prev.userId === userId
+          prev.userId === userId && !prev.journeys.some((j) => j.id === journey.id)
             ? { ...prev, journeys: [...prev.journeys, journey], pendingIds: new Set(prev.pendingIds).add(journey.id) }
             : prev,
         )
-        void addToSupabase(userId, journey).then((res) => {
+        void inOrder(writes.current, journey.id, () => addToSupabase(userId, journey)).then((res) => {
           if (!res.ok) {
             // Not rolled back. The old rollback removed a journey the person
             // had just watched appear; keeping it, marked unsent, and
@@ -218,24 +237,39 @@ export function useJourneys(userId: string | null): JourneyStore {
           dropPending(userId, [journey.id])
           setStore((prev) => (prev.userId === userId ? { ...prev, pendingIds: without(prev.pendingIds, journey.id) } : prev))
         })
-        return journey
+        return
       }
 
       setStore((prev) => {
+        if (prev.journeys.some((j) => j.id === journey.id)) return prev
         const next = [...prev.journeys, journey]
         write(prev.userId ? keyFor(prev.userId) : lsKey, next)
         return { ...prev, journeys: next }
       })
-      return journey
     },
     [userId, useSupabase, lsKey],
   )
 
-  const remove = useCallback(
-    (id: string) => {
+  /**
+   * Take one journey off the map and out of storage. `announce` raises the
+   * "Deleted" message with its Undo; an Undo of an add passes false, because
+   * the line leaving the map already says it happened. A failure is reported
+   * either way.
+   */
+  const drop = useCallback(
+    (id: string, announce: boolean) => {
+      const removed = store.journeys.find((j) => j.id === id)
+      if (!removed) return
+      if (announce) {
+        showToast({
+          id: `journey-${id}`,
+          message: `Deleted ${describe(removed)}.`,
+          action: { label: 'Undo', run: () => { latest.current.restore(removed) } },
+        })
+      }
+
+      undone.current.delete(id)
       if (useSupabase && userId) {
-        const removed = store.journeys.find((j) => j.id === id)
-        if (!removed) return
         const wasPending = store.pendingIds.has(id)
         // Out of the pending log first, so an unsent journey that is deleted
         // is not re-sent by the next sync.
@@ -249,19 +283,30 @@ export function useJourneys(userId: string | null): JourneyStore {
             : prev,
         )
         // Sent even when pending: its save may have landed without the reply
-        // arriving, and deleting a row that is not there succeeds.
-        void removeFromSupabase(userId, id).then((res) => {
+        // arriving, and deleting a row that is not there succeeds. Queued
+        // behind any save of the same journey, so it cannot overtake it.
+        void inOrder(writes.current, id, () => removeFromSupabase(userId, id)).then((res) => {
           if (res.ok) return
+          if (import.meta.env.DEV) console.warn('[journeys] remove failed:', res.error)
+          // Undone before the failure arrived: the journey is already back,
+          // with its save queued behind this delete. Nothing to report.
+          if (undone.current.delete(id)) return
           // Put it back exactly as it was — including back in the pending log
           // if it was unsent — so a failed delete never costs the journey.
           if (wasPending) addPending(userId, removed)
           setStore((prev) =>
-            prev.userId === userId
+            prev.userId === userId && !prev.journeys.some((j) => j.id === id)
               ? { ...prev, journeys: [...prev.journeys, removed],
                   pendingIds: wasPending ? new Set(prev.pendingIds).add(id) : prev.pendingIds }
               : prev,
           )
-          console.warn('[journeys] could not remove that journey; it is back on the map. Try again.')
+          // Same id as the "Deleted" message, so this replaces it rather than
+          // contradicting it from the next row.
+          showToast({
+            id: `journey-${id}`,
+            message: `Couldn’t delete ${describe(removed)} from your account, so it’s back on the map. Nothing changed.`,
+            action: { label: 'Try again', run: () => { latest.current.drop(id, true) } },
+          })
         })
         return
       }
@@ -274,6 +319,46 @@ export function useJourneys(userId: string | null): JourneyStore {
     },
     [userId, useSupabase, lsKey, store.journeys, store.pendingIds],
   )
+
+  /**
+   * What a message's button calls. It is pressed seconds after the render
+   * that raised it, against a journey list that has moved on since — so it
+   * reaches the current `drop` and `put` rather than the ones in its closure.
+   */
+  const restore = useCallback((journey: Journey) => {
+    undone.current.add(journey.id)
+    put(journey)
+  }, [put])
+  const latest = useRef({ drop, restore })
+  useEffect(() => { latest.current = { drop, restore } }, [drop, restore])
+
+  /*
+   * Undo is the confirmation for both add and delete, as the roadmap has it
+   * (docs/08-roadmap.md, "optimistic add with undo"; "delete gets undo"): a
+   * quiet line naming the journey, with the way back on it. One toast id per
+   * journey, so whatever is said last about it is the only thing said.
+   */
+  const add = useCallback(
+    (draft: JourneyDraft, graph: RailGraph | null, trainStops?: readonly string[]) => {
+      // Null, not 0, when it cannot be worked out here — see Journey.distanceKm.
+      let distanceKm: number | null = null
+      if (graph) {
+        const { result } = routeForJourney(graph, draft.fromCode, draft.toCode, trainStops)
+        if (result) distanceKm = Math.round(result.km * 10) / 10
+      }
+      const journey: Journey = { ...draft, id: newJourneyId(), distanceKm }
+      put(journey)
+      showToast({
+        id: `journey-${journey.id}`,
+        message: `Added ${describe(journey)}.`,
+        action: { label: 'Undo', run: () => { latest.current.drop(journey.id, false) } },
+      })
+      return journey
+    },
+    [put],
+  )
+
+  const remove = useCallback((id: string) => { drop(id, true) }, [drop])
 
   return {
     journeys: store.journeys,
@@ -313,6 +398,33 @@ function without(set: ReadonlySet<string>, id: string): ReadonlySet<string> {
   const next = new Set(set)
   next.delete(id)
   return next
+}
+
+/**
+ * Run server writes for one journey in the order they were asked for.
+ *
+ * Without this, an Undo pressed while the save is still in flight sends a
+ * delete that can reach the server before the insert it is undoing — and the
+ * row comes back (docs/12-journey-sync.md listed this as a known edge; Undo
+ * made it a one-tap path). Each write waits for the previous write on the
+ * same id to settle, success or failure. Different journeys stay parallel.
+ */
+function inOrder<T>(queue: Map<string, Promise<unknown>>, id: string, op: () => Promise<T>): Promise<T> {
+  const next = (queue.get(id) ?? Promise.resolve()).then(op, op)
+  queue.set(id, next)
+  // `then(f, f)`, not `finally`: `finally` hands back a promise that rejects
+  // when `next` does, and nothing would be there to catch it.
+  const settle = () => { if (queue.get(id) === next) queue.delete(id) }
+  next.then(settle, settle)
+  return next
+}
+
+/** "HWH · PURI, 12 Sep 2026" — the codes and date the journey card prints. */
+function describe(j: Journey): string {
+  const date = new Date(`${j.travelledOn}T00:00:00`).toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  })
+  return `${j.fromCode} · ${j.toCode}, ${date}`
 }
 
 function uniqueById(rows: readonly Journey[]): Journey[] {

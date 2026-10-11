@@ -10,7 +10,6 @@ dist/
 dist-ssr/
 .vite/
 *.local
-*.md
 # ...except the design system, whose readme, SKILL.md and guidelines ARE the
 # system. `*.md` above would otherwise ignore exactly the files that matter.
 !design-system/**/*.md
@@ -35,3 +34,8 @@ npm-debug.log*
 /docs/social
 /docs/spike
 newdata.json
+
+# private planning and research, kept out of the repo
+/docs/01-suggestions-from-vidit.md
+/docs/02-six-week-plan.md
+/research_notes/

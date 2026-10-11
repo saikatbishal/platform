@@ -9,6 +9,7 @@ import { useAuth } from '@/features/auth/AuthProvider.tsx'
 import { SignInButton } from '@/features/auth/SignInButton.tsx'
 import { UserMenu } from '@/features/auth/UserMenu.tsx'
 import { JourneysSheet } from '@/components/JourneysSheet.tsx'
+import { Toaster } from '@/components/Toaster.tsx'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
 import { formatKm } from '@/lib/distance.ts'
 import { evaluateMilestones } from '@/features/stats/milestones.ts'
@@ -646,6 +647,8 @@ export default function App() {
         </div>
       )}
 
+      {/* Last, so it paints over every sheet — a delete fails from inside one. */}
+      <Toaster />
     </main>
   )
 }
