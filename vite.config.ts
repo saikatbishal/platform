@@ -53,5 +53,27 @@ export default defineConfig({
   resolve: {
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        /*
+         * Libraries in their own files, so a deploy that changes only app
+         * code — most of them — leaves a returning visitor's cached React and
+         * Supabase alone instead of re-downloading everything with the
+         * changed bytes.
+         *
+         * React is on the first paint either way; Supabase is not. It arrives
+         * through a dynamic import (src/lib/supabase.ts), and grouping it
+         * here only names that file — nothing here pulls it forward.
+         */
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: 'supabase', test: /[\\/]node_modules[\\/](@supabase|iceberg-js)[\\/]/ },
+          ],
+        },
+      },
+    },
+  },
   server: { port: 5173 },
 })

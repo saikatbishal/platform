@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase.ts'
+import { getSupabase, isSupabaseConfigured } from '@/lib/supabase.ts'
 import { closeDemoSession, openDemoSession, readDemoSession } from './demoSession.ts'
 import type { AuthMode, AuthState, AuthStatus, AuthUser } from './types.ts'
 
@@ -74,7 +74,7 @@ export function useAuthState(): AuthState {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!supabase) {
+    if (!isSupabaseConfigured) {
       const demo = readDemoSession()
       setUser(demo)
       setStatus(demo ? 'signed-in' : 'signed-out')
@@ -87,40 +87,57 @@ export function useAuthState(): AuthState {
       clearRedirectError()
     }
 
+    // `loading` covers the client's own download now too — see getSupabase.
+    // The map does not wait on it; only the account chip does.
     let cancelled = false
-    void supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return
-      if (data.session?.user) {
-        setUser(toUser(data.session.user))
-        setStatus('signed-in')
-      } else {
-        setStatus('signed-out')
-      }
-    })
+    let unsubscribe: (() => void) | null = null
+    getSupabase().then(
+      (supabase) => {
+        if (cancelled || !supabase) return
+        void supabase.auth.getSession().then(({ data }) => {
+          if (cancelled) return
+          if (data.session?.user) {
+            setUser(toUser(data.session.user))
+            setStatus('signed-in')
+          } else {
+            setStatus('signed-out')
+          }
+        })
 
-    // Fires on sign-in (including the return from Google), sign-out, and token
-    // refresh — the single subscription that keeps the UI truthful.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(toUser(session.user))
-        setStatus('signed-in')
-        setError(null)
-      } else {
-        setUser(null)
+        // Fires on sign-in (including the return from Google), sign-out, and
+        // token refresh — the single subscription that keeps the UI truthful.
+        const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+          if (session?.user) {
+            setUser(toUser(session.user))
+            setStatus('signed-in')
+            setError(null)
+          } else {
+            setUser(null)
+            setStatus('signed-out')
+          }
+        })
+        unsubscribe = () => { sub.subscription.unsubscribe() }
+      },
+      () => {
+        if (cancelled) return
+        // The sign-in code itself did not arrive — offline on first visit,
+        // or a deploy replaced the file mid-session. Signed out is true of
+        // this page; journeys logged now are kept on this device.
+        setError('Couldn’t load sign-in. Check your connection, then reload the page.')
         setStatus('signed-out')
-      }
-    })
+      },
+    )
 
     return () => {
       cancelled = true
-      sub.subscription.unsubscribe()
+      unsubscribe?.()
     }
   }, [])
 
   const signIn = useCallback(async () => {
     setError(null)
 
-    if (!supabase) {
+    if (!isSupabaseConfigured) {
       openDemoSession()
       setUser(readDemoSession())
       setStatus('signed-in')
@@ -128,6 +145,12 @@ export function useAuthState(): AuthState {
     }
 
     setStatus('redirecting')
+    const supabase = await getSupabase().catch(() => null)
+    if (!supabase) {
+      setError('Couldn’t load sign-in. Check your connection and try again.')
+      setStatus('signed-out')
+      return
+    }
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -155,13 +178,19 @@ export function useAuthState(): AuthState {
   const signOut = useCallback(async () => {
     setError(null)
 
-    if (!supabase) {
+    if (!isSupabaseConfigured) {
       closeDemoSession()
       setUser(null)
       setStatus('signed-out')
       return
     }
 
+    // Already loaded — nobody is signed in to sign out of until it has.
+    const supabase = await getSupabase().catch(() => null)
+    if (!supabase) {
+      setError('Couldn’t reach the sign-in service, so you’re still signed in. Check your connection and try again.')
+      return
+    }
     const { error: err } = await supabase.auth.signOut()
     if (err) {
       // The local session is already gone in every case worth worrying about;
