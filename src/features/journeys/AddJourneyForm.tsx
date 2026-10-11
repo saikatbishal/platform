@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent, RefObject } from 'react'
+import type { KeyboardEvent, ReactNode, RefObject } from 'react'
 import { useStationSearch } from './useStationSearch.ts'
+import { suggestStations } from './suggestStations.ts'
 import { useTrainsBetween } from './useTrainsBetween.ts'
 import type { TrainOption } from './useTrainsBetween.ts'
 import { useTrainTimes } from './useTrainTimes.ts'
@@ -43,13 +44,20 @@ function daysAgo(back: number): string {
 const today = () => daysAgo(0)
 
 function StationField({
-  label, value, onPick, search, exclude, inputRef, onPicked,
+  label, value, onPick, search, exclude, excludedBy, inputRef, onPicked, action, suggestions,
 }: {
   label: string
+  /** Stations to offer before anything is typed — see suggestStations.ts. */
+  suggestions: readonly StationHit[]
+  /** A control for the label row's far end — the To field's Swap. */
+  action?: ReactNode
   value: StationHit | null
   onPick: (hit: StationHit | null) => void
   search: (q: string, limit?: number) => StationHit[]
+  /** The station picked in the other field — it can't be picked here too. */
   exclude?: string | undefined
+  /** That other field's label, for saying why: "Already your To station." */
+  excludedBy: string
   /** This field's own input, so the field before it can hand focus over. */
   inputRef?: RefObject<HTMLInputElement | null> | undefined
   /** Fired on a keyboard pick only — see the call site for why not on a tap. */
@@ -58,21 +66,49 @@ function StationField({
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(0)
-  const hits = useMemo(
-    () => (open && query ? search(query, 6).filter((h) => h.code !== exclude) : []),
-    [open, query, search, exclude],
-  )
+  /*
+   * The other field's station can't be picked here — a journey needs two
+   * different stations, and the database refuses one that doesn't. It used to
+   * be filtered out of the results in silence, so typing it read as a broken
+   * search: the one station you were sure existed was missing, and when it
+   * was the only match (type its code) the list did not open at all.
+   *
+   * Now it stays where it ranked, as a row that says why it can't be chosen.
+   * The search runs one result deeper so that taking it out still leaves six
+   * real ones; it is only shown if it ranked inside those six, so a broad
+   * query doesn't grow a reminder at the bottom of the list.
+   */
+  const rows = useMemo(() => {
+    if (!open || !query) return []
+    const found = search(query, 7)
+    // `i` is a choosable row's place among the choosable rows — the index the
+    // keyboard and `aria-activedescendant` count in. -1 on the taken row.
+    const out: { hit: StationHit; taken: boolean; i: number }[] = []
+    let real = 0
+    found.forEach((h, rank) => {
+      if (h.code === exclude) {
+        if (rank < 6) out.push({ hit: h, taken: true, i: -1 })
+      } else if (real < 6) {
+        out.push({ hit: h, taken: false, i: real })
+        real += 1
+      }
+    })
+    return out
+  }, [open, query, search, exclude])
+  /** The rows that can be chosen — what the keyboard moves through. */
+  const hits = useMemo(() => rows.filter((r) => !r.taken).map((r) => r.hit), [rows])
 
   /*
    * One expression decides three things — whether the list is drawn, what
    * `aria-expanded` claims, and whether a key press belongs to the list or to
    * the form behind it. Keeping them derived from the same value is what stops
    * Escape closing the sheet while a list the user can see is still open.
+   * A list holding only the taken station is still a list on screen.
    */
-  const expanded = hits.length > 0
+  const expanded = rows.length > 0
   // `exclude` changes when the other field is picked, which can shorten the
   // list under an index that was valid a render ago.
-  const activeIndex = expanded ? Math.min(active, hits.length - 1) : -1
+  const activeIndex = hits.length > 0 ? Math.min(active, hits.length - 1) : -1
 
   const inputId = useId()
   const listId = useId()
@@ -111,6 +147,35 @@ function StationField({
     hadValue.current = value !== null
   }, [value, ref])
 
+  /*
+   * The chips under an empty field: your own stations, one tap each, with no
+   * keyboard. That is the point of them on a phone — a list that opened on
+   * focus would open under the on-screen keyboard focus throws up, offering
+   * "no typing" with a keyboard in the way.
+   *
+   * One Tab stop for the row, arrows within it (a roving tabindex): four
+   * chips per field as four Tab stops each would make the keyboard route
+   * through this form eight presses longer, for people who can type HWH
+   * faster than they can arrow to it anyway.
+   */
+  const showChips = !value && query === '' && suggestions.length > 0
+  const [chipAt, setChipAt] = useState(0)
+  const chipIndex = Math.min(chipAt, suggestions.length - 1)
+  const chipRefs = useRef<(HTMLButtonElement | null)[]>([])
+  const onChipKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const last = suggestions.length - 1
+    const next =
+      e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (chipIndex === last ? 0 : chipIndex + 1)
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (chipIndex === 0 ? last : chipIndex - 1)
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? last
+      : null
+    if (next === null) return
+    e.preventDefault()
+    setChipAt(next)
+    chipRefs.current[next]?.focus()
+  }
+
   const choose = (hit: StationHit, byKeyboard: boolean) => {
     onPick(hit)
     setOpen(false)
@@ -132,6 +197,8 @@ function StationField({
       // Otherwise the caret jumps to the end of the query instead.
       e.preventDefault()
       if (!expanded) { setOpen(true); return }
+      // Only the taken station is showing — there is nothing to move to.
+      if (hits.length === 0) return
       // Wraps both ways: the end of a six-row list is not a wall.
       setActive(
         e.key === 'ArrowDown'
@@ -166,12 +233,15 @@ function StationField({
    */
   return (
     <div className="relative">
-      <label
-        htmlFor={inputId}
-        className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase"
-      >
-        {label}
-      </label>
+      <div className="relative mb-1.5">
+        <label
+          htmlFor={inputId}
+          className="block text-label font-semibold tracking-label text-ink-faint uppercase"
+        >
+          {label}
+        </label>
+        {action}
+      </div>
       {value ? (
         <div className="flex items-center justify-between gap-2 rounded-sm border border-line bg-surface-2 px-3 py-2.5">
           <span className="min-w-0">
@@ -216,6 +286,29 @@ function StationField({
         />
       )}
 
+      {showChips && (
+        <div role="group" aria-label={`Your stations for ${label}`} onKeyDown={onChipKey} className="mt-2 flex flex-wrap gap-2">
+          {suggestions.map((h, k) => (
+            <button
+              key={h.code}
+              type="button"
+              ref={(el) => { chipRefs.current[k] = el }}
+              tabIndex={k === chipIndex ? 0 : -1}
+              onFocus={() => { setChipAt(k) }}
+              /* `detail` is 0 when Enter or Space pressed the button, so a
+                 keyboard pick moves on to the next field the way a keyboard
+                 pick from the results already does — and a tap stays put,
+                 for the same reason a tapped result does. */
+              onClick={(e) => { choose(h, e.detail === 0) }}
+              className="inline-flex min-h-11 max-w-full items-baseline gap-1.5 rounded-sm border border-line bg-surface px-2.5 py-3 text-left transition-colors duration-150 hover:bg-surface-2"
+            >
+              <span className="tabular text-sm text-accent">{h.code}</span>
+              <span className="min-w-0 truncate text-sm text-ink-soft">{h.name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {expanded && (
         <ul
           ref={listRef}
@@ -228,7 +321,33 @@ function StationField({
           tabIndex={-1}
           className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-sm border border-line bg-surface"
         >
-          {hits.map((h, i) => (
+          {rows.map(({ hit: h, taken, i }) => taken ? (
+            <li key={h.code} role="presentation">
+              {/* A real option, announced as unavailable with its reason
+                  as part of its name, so a screen reader hears what a
+                  sighted user reads. Not a button: there is nothing to do.
+                  The arrow keys pass over it because it is not in `hits`;
+                  the pointer-down is swallowed so a tap on it leaves the
+                  input focused and the list open, rather than blurring
+                  both away for nothing. No hover state, no vermillion —
+                  this is the form explaining itself, not an error. */}
+              <div
+                role="option"
+                aria-disabled="true"
+                aria-selected="false"
+                onPointerDown={(e) => { e.preventDefault() }}
+                className="border-b border-line px-3 py-2.5 last:border-b-0"
+              >
+                <div className="flex items-baseline gap-2">
+                  <span className="tabular w-14 shrink-0 text-sm text-ink-faint">{h.code}</span>
+                  <span className="min-w-0 flex-1 truncate text-ink-faint">{h.name}</span>
+                </div>
+                <p className="mt-0.5 mb-0 pl-16 text-xs text-ink-soft">
+                  Already your {excludedBy} station. A journey needs two different stations.
+                </p>
+              </div>
+            </li>
+          ) : (
             <li key={h.code} role="presentation">
               <button
                 type="button"
@@ -532,12 +651,33 @@ function TrainField({
   )
 }
 export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, onClose }: Props) {
-  const { search } = useStationSearch(stations, journeys)
+  const { search, hitFor } = useStationSearch(stations, journeys)
   const { request, between, loading } = useTrainsBetween()
   const { request: requestTimes, legFor } = useTrainTimes()
 
   const [from, setFrom] = useState<StationHit | null>(initialFrom)
   const [to, setTo] = useState<StationHit | null>(null)
+  /* Each field is offered your stations, anchored on the other field's pick:
+     once From is Howrah, To leads with where you go from Howrah. The clock is
+     read once, when the form opens — a suggestion list that reshuffled
+     because a second ticked by would be a bug, not freshness.
+
+     To offers nothing until From is picked. With both empty the two lists
+     are the same four stations, twice — about 200px of repetition that
+     pushed the sheet past a phone's height. Once From is set, To's chips
+     are your routes from there, which is the list worth the space. */
+  const [openedAt] = useState(() => Date.now())
+  const fromSuggestions = useMemo(
+    () => suggestStations(journeys ?? [], to?.code ?? null, openedAt)
+      .map(hitFor).filter((h): h is StationHit => h !== null),
+    [journeys, to, openedAt, hitFor],
+  )
+  const toSuggestions = useMemo(
+    () => (from
+      ? suggestStations(journeys ?? [], from.code, openedAt).map(hitFor).filter((h): h is StationHit => h !== null)
+      : []),
+    [journeys, from, openedAt, hitFor],
+  )
   /* Picking "From" with the keyboard carries on into "To" — the fifteen-second
      path shouldn't need a Tab in the middle of it. Deliberately not done for a
      tap: on a phone that would throw the on-screen keyboard back up over a
@@ -555,6 +695,12 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
   const [travelledOn, setTravelledOn] = useState(today())
   const [note, setNote] = useState('')
   const [showTimes, setShowTimes] = useState(false)
+  const [showNote, setShowNote] = useState(false)
+  /** "Earlier…" pressed: the date field is out. */
+  const [pickingDate, setPickingDate] = useState(false)
+  const dateInputRef = useRef<HTMLInputElement>(null)
+  const dateLabelId = useId()
+  const addTimesRef = useRef<HTMLButtonElement>(null)
   const [departureTime, setDepartureTime] = useState('')
   const [arrivalTime, setArrivalTime] = useState('')
   const [arrivalDayOffset, setArrivalDayOffset] = useState(0)
@@ -671,6 +817,8 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
         onPick={setFrom}
         search={search}
         exclude={to?.code}
+        excludedBy="To"
+        suggestions={fromSuggestions}
         onPicked={() => { toInputRef.current?.focus() }}
       />
       <StationField
@@ -679,44 +827,79 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
         onPick={setTo}
         search={search}
         exclude={from?.code}
+        excludedBy="From"
+        suggestions={toSuggestions}
         inputRef={toInputRef}
+        action={(from || to) && (
+          /* Return journeys are half of all journeys: the way back is the way
+             there, reversed, and should not mean picking both stations again.
+             Shown once either field has a station — swapping one fixes a
+             station picked into the wrong field, too.
+
+             Words, not an icon: the design system gives a control an
+             uppercase label rather than a glyph, and ↕ rides along as the
+             running-text mark the roadmap already named. It sits in the To
+             label row, which is empty on the right, so the form does not
+             grow a row for it — and absolutely, so it cannot push the label
+             row taller the moment it appears.
+
+             The 44px target has 33px to live in: 16px of gap, this 11px
+             label line, and its 6px margin. It is centred on that span, not
+             on the label, so the 11px it cannot avoid overlapping splits
+             into the edge of each box instead of covering the top of the To
+             input, where a tap means "type here". That puts the box 5px
+             above the label's centre; `pt-2.5` moves the word back down
+             by the same 5px, onto the label's line. */
+          <button
+            type="button"
+            onClick={() => { setFrom(to); setTo(from) }}
+            aria-label="Swap From and To"
+            className="absolute top-1/2 -right-2 h-11 -translate-y-[calc(50%+5px)] px-2 pt-2.5 text-label font-semibold tracking-label text-ink-faint uppercase transition-colors duration-150 hover:text-accent"
+          >
+            Swap <span aria-hidden="true">↕</span>
+          </button>
+        )}
       />
 
       {/* A <div>, not a <label>, for the reason TrainField's `labelledBy`
           prop documents: a button is labelable, so a label wrapped around
           this would forward clicks into the control. The same trap
-          StationField hit. */}
-      <div className="block">
-        <span
-          id={trainLabelId}
-          className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase"
-        >
-          Train {from && to && <span className="text-ink-faint">— optional</span>}
-        </span>
-        {!from || !to ? (
-          <p className="rounded-sm border border-dashed border-line px-3 py-2.5 text-sm text-ink-faint">
-            Pick both stations and the trains that run between them appear here.
-          </p>
-        ) : loading && trains.length === 0 ? (
-          <p className="rounded-sm border border-line px-3 py-2.5 text-sm text-ink-faint">Looking…</p>
-        ) : trains.length === 0 ? (
-          /* Not an error: 450 stations have no timetable at all, and two real
-             stations can sit on different parts of the network. The journey
-             still logs — it just routes by inference. */
-          <p className="rounded-sm border border-line px-3 py-2.5 text-sm text-ink-faint">
-            No through train in the timetable. The route will be drawn as the
-            shortest path instead.
-          </p>
-        ) : (
-          <TrainField
-            trains={trains}
-            value={train}
-            onChange={setTrain}
-            custom={CUSTOM}
-            labelledBy={trainLabelId}
-          />
-        )}
-      </div>
+          StationField hit.
+
+          Only once both stations are picked — the moment it has trains to
+          list. Before that it was a dashed box explaining that it would be
+          useful later: 85px of the form spent on a promise. It is the one
+          optional field shown unasked, because picking a train is what makes
+          the route exact rather than inferred. */}
+      {from && to && (
+        <div className="block">
+          <span
+            id={trainLabelId}
+            className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase"
+          >
+            Train <span className="text-ink-faint">— optional</span>
+          </span>
+          {loading && trains.length === 0 ? (
+            <p className="rounded-sm border border-line px-3 py-2.5 text-sm text-ink-faint">Looking…</p>
+          ) : trains.length === 0 ? (
+            /* Not an error: 450 stations have no timetable at all, and two real
+               stations can sit on different parts of the network. The journey
+               still logs — it just routes by inference. */
+            <p className="rounded-sm border border-line px-3 py-2.5 text-sm text-ink-faint">
+              No through train in the timetable. The route will be drawn as the
+              shortest path instead.
+            </p>
+          ) : (
+            <TrainField
+              trains={trains}
+              value={train}
+              onChange={setTrain}
+              custom={CUSTOM}
+              labelledBy={trainLabelId}
+            />
+          )}
+        </div>
+      )}
 
       {/*
         An offer, not a default.
@@ -779,36 +962,28 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
         </label>
       )}
 
-      <label className="block">
-        <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
+      {/* One row, not a date field with a row of shortcuts under it. Today is
+          the default and yesterday is one tap — an overnight train arrives the
+          morning after the day you think of it as — so the full picker is for
+          the backfill, behind Earlier…, and the row costs one line until then.
+          Earlier stays pressed while its field is open, whatever date the
+          field holds: the button says which way you chose, not what the date
+          happens to equal. */}
+      <div role="group" aria-labelledby={dateLabelId}>
+        <span id={dateLabelId} className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
           Travelled on
         </span>
-        <input
-          type="date"
-          value={travelledOn}
-          /* The schema refuses a future date (not_in_the_future), so the
-             input refuses it too rather than letting the insert fail later.
-             There is deliberately no `min`: this is a record of a rail life,
-             and the first thing anyone does with one is backfill. A floor of
-             a few months would reject the app's own sample journeys, the
-             oldest of which is from November 2025. */
-          max={today()}
-          onChange={(e) => { setTravelledOn(e.target.value) }}
-          className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
-        />
-        {/* Today is the default; yesterday is one tap, because an overnight
-            train arrives the morning after the day you think of it as. */}
-        <div className="mt-2 flex gap-2">
+        <div className="flex gap-2">
           {([['Today', 0], ['Yesterday', 1]] as const).map(([label, back]) => {
             const value = daysAgo(back)
-            const active = travelledOn === value
+            const active = !pickingDate && travelledOn === value
             return (
               <button
                 key={label}
                 type="button"
-                onClick={() => { setTravelledOn(value) }}
+                onClick={() => { setTravelledOn(value); setPickingDate(false) }}
                 aria-pressed={active}
-                className={`rounded-sm border px-3 py-2 text-label font-semibold tracking-label uppercase ${
+                className={`min-h-11 rounded-sm border px-3 text-label font-semibold tracking-label uppercase transition-colors duration-150 ${
                   active
                     ? 'border-accent text-accent'
                     : 'border-line text-ink-faint hover:bg-surface-2 hover:text-accent'
@@ -818,10 +993,79 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
               </button>
             )
           })}
+          <button
+            type="button"
+            onClick={() => {
+              setPickingDate(true)
+              // Straight to the calendar, in the same tap: on a phone a date
+              // field opens its picker on a tap of its own, so without this
+              // "Earlier" would take two. `showPicker` needs the user gesture
+              // this click is, and is missing from older browsers — where
+              // the field appearing, focused, is the fallback.
+              requestAnimationFrame(() => {
+                const input = dateInputRef.current
+                input?.focus()
+                try { input?.showPicker() } catch { /* unsupported — focus is enough */ }
+              })
+            }}
+            aria-pressed={pickingDate}
+            className={`min-h-11 rounded-sm border px-3 text-label font-semibold tracking-label uppercase transition-colors duration-150 ${
+              pickingDate
+                ? 'border-accent text-accent'
+                : 'border-line text-ink-faint hover:bg-surface-2 hover:text-accent'
+            }`}
+          >
+            Earlier…
+          </button>
         </div>
-      </label>
+        {pickingDate && (
+          <input
+            ref={dateInputRef}
+            type="date"
+            aria-label="Date travelled"
+            value={travelledOn}
+            /* The schema refuses a future date (not_in_the_future), so the
+               input refuses it too rather than letting the insert fail later.
+               There is deliberately no `min`: this is a record of a rail life,
+               and the first thing anyone does with one is backfill. */
+            max={today()}
+            onChange={(e) => { setTravelledOn(e.target.value) }}
+            className="mt-2 w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
+          />
+        )}
+      </div>
 
-      {showTimes ? (
+      {/* The two optional extras, collapsed to links sharing one row — times
+          already worked this way; the note now does too. A link goes once its
+          section is open, so the row holds whatever is still unopened and
+          disappears when both are. The negative margins keep the row one text
+          line tall while each link keeps a 44px target, which reaches into
+          the form's 16px gaps and no further. */}
+      {(!showTimes || !showNote) && (
+        <div className="flex gap-6">
+          {!showTimes && (
+            <button
+              type="button"
+              ref={addTimesRef}
+              onClick={() => { setShowTimes(true) }}
+              className="-my-2.5 min-h-11 text-label font-semibold tracking-label text-ink-faint uppercase transition-colors duration-150 hover:text-accent"
+            >
+              + Add times
+            </button>
+          )}
+          {!showNote && (
+            <button
+              type="button"
+              onClick={() => { setShowNote(true) }}
+              className="-my-2.5 min-h-11 text-label font-semibold tracking-label text-ink-faint uppercase transition-colors duration-150 hover:text-accent"
+            >
+              + Add a note
+            </button>
+          )}
+        </div>
+      )}
+
+      {showTimes && (
         <div className="flex flex-col gap-3 rounded-sm border border-line p-3">
           <div className="flex items-center justify-between">
             <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
@@ -834,6 +1078,9 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
                 setDepartureTime('')
                 setArrivalTime('')
                 setArrivalDayOffset(0)
+                // Back to the link that reappears in this box's place — the
+                // same orphaned-focus problem as opening, the other way round.
+                requestAnimationFrame(() => { addTimesRef.current?.focus() })
               }}
               className="text-label font-semibold tracking-label text-ink-faint uppercase hover:text-accent"
             >
@@ -845,6 +1092,10 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
               <span className="mb-1 block text-sm text-ink-faint">Departed</span>
               <input
                 type="time"
+                /* The button that opened this ("+ Add times", or "Use these")
+                   is gone the moment it did, which would drop focus on <body>
+                   and send the next Tab to the top of the page. */
+                autoFocus
                 value={departureTime}
                 onChange={(e) => { setDepartureTime(e.target.value) }}
                 className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink focus:border-accent focus:outline-none"
@@ -871,27 +1122,24 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
             Arrived: {arrivalDayOffset === 0 ? 'same day' : `+${arrivalDayOffset} day${arrivalDayOffset > 1 ? 's' : ''}`}
           </button>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => { setShowTimes(true) }}
-          className="self-start text-label font-semibold tracking-label text-ink-faint uppercase hover:text-accent"
-        >
-          + Add departure &amp; arrival times
-        </button>
       )}
 
-      <label className="block">
-        <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
-          Note — optional
-        </span>
-        <input
-          value={note}
-          placeholder="Overnight, top bunk."
-          onChange={(e) => { setNote(e.target.value) }}
-          className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
-        />
-      </label>
+      {showNote && (
+        <label className="block">
+          <span className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
+            Note — optional
+          </span>
+          <input
+            value={note}
+            placeholder="Overnight, top bunk."
+            /* Opened by "+ Add a note", whose only purpose is typing here —
+               so the field takes focus as it appears, keyboard and all. */
+            autoFocus
+            onChange={(e) => { setNote(e.target.value) }}
+            className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+          />
+        </label>
+      )}
 
       <div className="mt-1 flex gap-2">
         <button
