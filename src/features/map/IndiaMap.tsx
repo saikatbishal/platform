@@ -33,6 +33,14 @@ interface Props {
       page owns what "full detail" means (the Journeys sheet, filtered to
       this route); this file only knows which journey triggered it. */
   onOpenJourneyModal?: (journeyId: string) => void
+  /**
+   * A trip lens (docs/features/trips/prd.md): the journeys in focus. Their
+   * routes stay as they are; every other route drops to `--route-idle`, and
+   * their ends dim with them. A lens, not a colour: the palette has one route
+   * colour on purpose, and twelve trips in twelve colours is a map of noise.
+   * Null, or absent, is the whole map.
+   */
+  lens?: ReadonlySet<string> | null
   ref?: React.Ref<IndiaMapHandle>
 }
 
@@ -41,6 +49,9 @@ export interface IndiaMapHandle {
       A journey with no route on the graph has nothing to frame — silently
       does nothing rather than snapping to a meaningless point. */
   flyToJourney: (journeyId: string) => void
+  /** The same for a set — a trip. False when none of them can be drawn
+      (an empty trip, or every leg unroutable): the map stays where it is. */
+  flyToJourneys: (journeyIds: readonly string[]) => boolean
 }
 
 /**
@@ -53,7 +64,7 @@ export interface IndiaMapHandle {
  * Putting the canvas underneath the land — the obvious "backdrop" instinct —
  * hides the station dots everywhere except over the sea.
  */
-export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTally, onOpenJourneyModal, ref }: Props) {
+export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTally, onOpenJourneyModal, lens = null, ref }: Props) {
   // Static for the life of the tab — device capability doesn't change
   // mid-session, so this is read once rather than tracked as state. Decides
   // whether a click on a route jumps straight to the full-detail modal
@@ -190,6 +201,25 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
       latest: latest ? { d: latest.d, exact: latest.exact } : null,
     }
   }, [routes, latestJourney])
+
+  /**
+   * The lens's own lines, merged the same way, drawn over the idle ones. The
+   * paths underneath keep drawing in exactly as before — the lens only changes
+   * their colour — so a draw-in and a lens never fight over one `d`.
+   */
+  const lensRoutes = useMemo(() => {
+    if (!lens) return null
+    const exact: string[] = []
+    const inferred: string[] = []
+    for (const r of routes) if (lens.has(r.id)) (r.exact ? exact : inferred).push(r.d)
+    return { exact: exact.join(' '), inferred: inferred.join(' ') }
+  }, [routes, lens])
+  const lensCodes = useMemo(() => {
+    if (!lens) return null
+    const codes = new Set<string>()
+    for (const j of journeys) if (lens.has(j.id)) { codes.add(j.fromCode); codes.add(j.toCode) }
+    return codes
+  }, [journeys, lens])
 
   /**
    * Where the latest journey ended, as a state. Read from the destination
@@ -432,22 +462,28 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
 
   const { animatedZoomBy, animatedReset, invalidate, flyToBounds } = usePanZoom(stage, { onFrame, onZoomSettled })
 
-  useImperativeHandle(ref, () => ({
-    flyToJourney: (journeyId: string) => {
-      if (!data) return
-      const route = routes.find((r) => r.id === journeyId)
-      if (!route) return
+  useImperativeHandle(ref, () => {
+    const frame = (ids: ReadonlySet<string>): boolean => {
+      if (!data) return false
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-      for (const code of route.stops) {
-        const s = data.byCode.get(code)
-        if (!s) continue
-        minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x)
-        minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y)
+      for (const route of routes) {
+        if (!ids.has(route.id)) continue
+        for (const code of route.stops) {
+          const s = data.byCode.get(code)
+          if (!s) continue
+          minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x)
+          minY = Math.min(minY, s.y); maxY = Math.max(maxY, s.y)
+        }
       }
-      if (minX === Infinity) return
+      if (minX === Infinity) return false
       flyToBounds(minX, minY, maxX, maxY)
-    },
-  }), [data, routes, flyToBounds])
+      return true
+    }
+    return {
+      flyToJourney: (journeyId: string) => { frame(new Set([journeyId])) },
+      flyToJourneys: (journeyIds: readonly string[]) => frame(new Set(journeyIds)),
+    }
+  }, [data, routes, flyToBounds])
 
   // Paint the first real frame once the data lands. `stage` is mounted from
   // the very first render, so usePanZoom wires up and fits immediately — but
@@ -845,12 +881,12 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
                 record share track, the record is what shows. */}
             {mergedRoutes.inferred && (
               <path ref={inferredPath} d={mergedRoutes.inferred} fill="none"
-                className="stroke-route-taken [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]"
+                className={`${lens ? 'stroke-route-idle' : 'stroke-route-taken'} [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]`}
                 strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
             {mergedRoutes.exact && (
               <path ref={exactPath} d={mergedRoutes.exact} fill="none"
-                className="stroke-route-taken [vector-effect:non-scaling-stroke]"
+                className={`${lens ? 'stroke-route-idle' : 'stroke-route-taken'} [vector-effect:non-scaling-stroke]`}
                 strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
             {/* The latest journey, half a pixel heavier and drawn on top. That
@@ -859,10 +895,24 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
                 its end it is enough to find it without shouting. */}
             {mergedRoutes.latest && (
               <path ref={latestPath} d={mergedRoutes.latest.d} fill="none"
-                className={`stroke-route-taken [vector-effect:non-scaling-stroke]${
+                className={`${lens ? 'stroke-route-idle' : 'stroke-route-taken'} [vector-effect:non-scaling-stroke]${
                   mergedRoutes.latest.exact ? '' : ' [stroke-dasharray:6_4]'
                 }`}
                 strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            {/* The lens: the trip's own lines, drawn whole over the idle ones.
+                Same two-path arrangement and the same reason — dashed under
+                solid, so where a guess and a record share track the record
+                shows. */}
+            {lensRoutes?.inferred && (
+              <path d={lensRoutes.inferred} fill="none"
+                className="stroke-route-taken [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]"
+                strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+            )}
+            {lensRoutes?.exact && (
+              <path d={lensRoutes.exact} fill="none"
+                className="stroke-route-taken [vector-effect:non-scaling-stroke]"
+                strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
             {/* An unroutable endpoint keeps its position and its colour — the
                 journey happened and this is where it ended — but goes hollow
@@ -873,13 +923,19 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
               <circle key={e.name} ref={(el) => { stopRefs.current[i] = el }}
                 cx={e.x} cy={e.y} r={4}
                 className={
-                  e.unroutable
-                    ? `fill-none [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke] ${
-                        e.last ? 'stroke-you-are-here' : 'stroke-station-seen'
-                      }`
-                    : e.last
-                      ? 'fill-you-are-here stroke-ground [vector-effect:non-scaling-stroke]'
-                      : 'fill-station-seen stroke-ground [vector-effect:non-scaling-stroke]'
+                  /* Outside a lens, an end dims with its line — the you-are-here
+                     dot too, when the latest journey is not the trip's. */
+                  lensCodes && !lensCodes.has(e.code)
+                    ? e.unroutable
+                      ? 'fill-none stroke-line-strong [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke]'
+                      : 'fill-line-strong stroke-ground [vector-effect:non-scaling-stroke]'
+                    : e.unroutable
+                      ? `fill-none [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke] ${
+                          e.last ? 'stroke-you-are-here' : 'stroke-station-seen'
+                        }`
+                      : e.last
+                        ? 'fill-you-are-here stroke-ground [vector-effect:non-scaling-stroke]'
+                        : 'fill-station-seen stroke-ground [vector-effect:non-scaling-stroke]'
                 }
                 strokeWidth={1.8}>
                 {e.unroutable && <title>{e.name} — no rail-graph data, so no line is drawn</title>}

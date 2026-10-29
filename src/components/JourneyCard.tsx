@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { formatKm } from '@/lib/distance.ts'
 import type { JourneyRoute } from '@/features/map/useJourneyRoutes.ts'
+import { NEW_TRIP, TripField, type TripOption } from '@/features/trips/TripField.tsx'
 import type { Journey } from '@/types/index.ts'
 
 interface Props {
@@ -18,11 +19,21 @@ interface Props {
       store, a click that silently does nothing. Disabling it says so instead
       of leaving a button that quietly fails. */
   readOnly?: boolean
+  /**
+   * "Part of a trip" — move this journey into a trip, out of one, or into a
+   * new one. All four are needed together; without them the row is left out.
+   */
+  trip?: {
+    options: readonly TripOption[]
+    onSet: (tripId: string | null) => void
+    onNew: (name: string) => void
+    onOpen: (tripId: string) => void
+  }
 }
 
 /** One journey, full detail — the record `RouteTooltip`'s quick glance
     points at. */
-export function JourneyCard({ journey, route, fromName, toName, onShowOnMap, onRemove, readOnly }: Props) {
+export function JourneyCard({ journey, route, fromName, toName, onShowOnMap, onRemove, readOnly, trip }: Props) {
   const [confirmingRemove, setConfirmingRemove] = useState(false)
   const dateStr = new Date(`${journey.travelledOn}T00:00:00`).toLocaleDateString('en-IN', {
     day: 'numeric', month: 'short', year: 'numeric',
@@ -59,6 +70,8 @@ export function JourneyCard({ journey, route, fromName, toName, onShowOnMap, onR
             Not drawn
           </span>
         )}
+
+        {trip && !readOnly && <TripRow journey={journey} {...trip} />}
 
         <div className="mt-4 border-t border-line pt-4">
           {journey.note ? (
@@ -112,6 +125,85 @@ export function JourneyCard({ journey, route, fromName, toName, onShowOnMap, onR
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+/**
+ * The journey's trip, changeable in place — the way a journey logged on the
+ * day gets into the trip made later. "New trip…" asks for a name right here
+ * and puts this journey in it; the trip itself has the rest.
+ */
+function TripRow({
+  journey, options, onSet, onNew, onOpen,
+}: {
+  journey: Journey
+  options: readonly TripOption[]
+  onSet: (tripId: string | null) => void
+  onNew: (name: string) => void
+  onOpen: (tripId: string) => void
+}) {
+  const labelId = useId()
+  const [naming, setNaming] = useState(false)
+  const [name, setName] = useState('')
+  const value = naming ? NEW_TRIP : journey.tripId ?? ''
+
+  return (
+    <div className="mt-4">
+      <div className="mb-1.5 flex items-baseline justify-between gap-3">
+        <span id={labelId} className="text-label font-semibold tracking-label text-ink-faint uppercase">
+          Part of a trip
+        </span>
+        {journey.tripId !== null && !naming && (
+          <button
+            type="button"
+            onClick={() => { if (journey.tripId !== null) onOpen(journey.tripId) }}
+            className="text-label font-semibold tracking-label text-ink-faint uppercase transition-colors duration-150 hover:text-accent"
+          >
+            Show the trip
+          </button>
+        )}
+      </div>
+      <TripField
+        options={options}
+        value={value}
+        labelledBy={labelId}
+        onChange={(next) => {
+          if (next === NEW_TRIP) { setNaming(true); return }
+          setNaming(false)
+          onSet(next === '' ? null : next)
+        }}
+      />
+      {naming && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (name.trim() === '') return
+            onNew(name)
+            setNaming(false)
+            setName('')
+          }}
+          className="mt-2 flex gap-2"
+        >
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">New trip’s name</span>
+            <input
+              value={name}
+              onChange={(e) => { setName(e.target.value) }}
+              placeholder="Himachal trip"
+              autoComplete="off"
+              className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={name.trim() === ''}
+            className="min-h-11 rounded-sm border border-line px-3 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-50"
+          >
+            Make it
+          </button>
+        </form>
+      )}
     </div>
   )
 }

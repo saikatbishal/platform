@@ -49,13 +49,35 @@ export function sameJourney(a: Journey, b: Journey): boolean {
  * Pure, and separated from every caller, because this is the one function in
  * the app whose bug is unrecoverable: a wrong merge does not throw, it eats
  * someone's travel. See scripts/check-merge.ts.
+ *
+ * **Trips (docs/features/trips/prd.md).** One exception to "existing wins":
+ * when a journey is on both sides and only the incoming copy is in a trip,
+ * the existing copy adopts that trip. Otherwise grouping journeys on a phone
+ * before signing in would be lost the moment the account's copy of the same
+ * journeys won the collision — no journey lost, but the trip silently
+ * emptied, which is the same bug in a smaller size. An existing copy that is
+ * already in a trip keeps its own. `adopted` lists what changed, so a caller
+ * that has to tell a server about it knows exactly which rows to update.
  */
 export function mergeJourneys(
   existing: readonly Journey[],
   incoming: readonly Journey[],
-): { merged: Journey[]; added: Journey[] } {
-  const added = incoming.filter((i) => !existing.some((e) => sameJourney(e, i)))
-  return { merged: [...existing, ...added], added }
+): { merged: Journey[]; added: Journey[]; adopted: Array<{ id: string; tripId: string }> } {
+  const added: Journey[] = []
+  const adoptedBy = new Map<string, string>()
+  for (const i of incoming) {
+    const twin = existing.find((e) => sameJourney(e, i))
+    if (!twin) { added.push(i); continue }
+    if (twin.tripId === null && i.tripId !== null && !adoptedBy.has(twin.id)) adoptedBy.set(twin.id, i.tripId)
+  }
+  const kept = adoptedBy.size === 0
+    ? [...existing]
+    : existing.map((e) => {
+        const tripId = adoptedBy.get(e.id)
+        return tripId === undefined ? e : { ...e, tripId }
+      })
+  const adopted = [...adoptedBy].map(([id, tripId]) => ({ id, tripId }))
+  return { merged: [...kept, ...added], added, adopted }
 }
 
 /**
@@ -70,6 +92,9 @@ export function mergeJourneys(
  *   unsent log, so a trip that exists in either is not sent twice.
  * - `anonAlreadyThere` are signed-out rows the account already holds as the
  *   same trip — confirmed by definition, safe to clear from the device.
+ * - `adopted` are rows the account (or the unsent log) already holds, in no
+ *   trip, whose signed-out twin was in one — see `mergeJourneys`. The caller
+ *   updates them: in the unsent log if they are there, on the server if not.
  */
 export function planSync(
   server: readonly Journey[],
@@ -80,6 +105,7 @@ export function planSync(
   toSend: Journey[]
   fromAnon: ReadonlySet<string>
   anonAlreadyThere: string[]
+  adopted: Array<{ id: string; tripId: string }>
 } {
   const onServer = new Set(server.map((j) => j.id))
   const pendingLanded = pending.filter((j) => onServer.has(j.id)).map((j) => j.id)
@@ -87,8 +113,14 @@ export function planSync(
   // An anon row whose id is already on the server was sent by an earlier
   // handover whose confirmation never got recorded — not a new trip.
   const anonFresh = anon.filter((j) => !onServer.has(j.id))
-  const { added } = mergeJourneys([...server, ...unsent], anonFresh)
+  const { added, adopted } = mergeJourneys([...server, ...unsent], anonFresh)
   const fromAnon = new Set(added.map((j) => j.id))
   const anonAlreadyThere = anon.filter((j) => !fromAnon.has(j.id)).map((j) => j.id)
-  return { pendingLanded, toSend: [...unsent, ...added], fromAnon, anonAlreadyThere }
+  // An unsent journey that adopts a trip is sent with it, rather than sent
+  // bare and updated after.
+  const adoptedUnsent = new Map(adopted.filter((a) => unsent.some((u) => u.id === a.id)).map((a) => [a.id, a.tripId]))
+  const unsentOut = adoptedUnsent.size === 0
+    ? unsent
+    : unsent.map((u) => { const t = adoptedUnsent.get(u.id); return t === undefined ? u : { ...u, tripId: t } })
+  return { pendingLanded, toSend: [...unsentOut, ...added], fromAnon, anonAlreadyThere, adopted }
 }

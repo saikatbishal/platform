@@ -11,6 +11,11 @@ components, hooks, and queries, and exports only what other features need.
 - **stats/** — kilometres, stations, states, longest. Derived from journeys,
   never stored. Cream numerals, tabular figures.
 - **railpass/** — the shareable card, rendered to canvas and downloadable.
+- **trips/** — named groups of journeys ("Himachal trip"): the list, the lens
+  on the map, the picker, the add form's field. Only the name and note are
+  stored; everything a trip adds up to is derived. Storage and sync live in
+  `journeys/useJourneys.ts`, because the two share one write queue. Spec:
+  `docs/features/trips/prd.md`.
 
 Cross-feature code goes in `src/lib` (pure functions) or `src/components`
 (presentational, no feature knowledge).

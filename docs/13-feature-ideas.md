@@ -244,6 +244,10 @@ Open questions:
 
 # 2. Trips
 
+> **Built 29 Oct 2026** — see `docs/features/trips/prd.md`. It departs from this
+> section in one place that matters: **empty trips are allowed**, because trips
+> are made before the travel as often as after.
+
 A trip is a named group of journeys: *Meghalaya, Dec 2025* holds the four trains
 that got you there and back.
 

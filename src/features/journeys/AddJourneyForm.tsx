@@ -5,7 +5,9 @@ import { useTrainsBetween } from './useTrainsBetween.ts'
 import type { TrainOption } from './useTrainsBetween.ts'
 import { useTrainTimes } from './useTrainTimes.ts'
 import type { StationHit } from './searchStations.ts'
-import type { Journey, JourneyDraft, Station } from '@/types/index.ts'
+import { NEW_TRIP, TripField, tripOptions } from '@/features/trips/TripField.tsx'
+import { defaultTripFor, formatDay, samePlaceFrom, type TripDefault } from '@/features/trips/trips.ts'
+import type { Journey, JourneyDraft, Station, Trip } from '@/types/index.ts'
 
 /**
  * Log a journey. Structure and behaviour only — the visual pass comes later,
@@ -23,8 +25,25 @@ interface Props {
   journeys?: readonly Journey[]
   /** Seeds "From" — quick find's "+ Log one from here" arrives with a station. */
   initialFrom?: StationHit | null
-  onAdd: (draft: JourneyDraft) => void
+  trips?: readonly Trip[]
+  /** Seeds "Part of a trip" — a trip's own "Log a journey into it". */
+  initialTripId?: string | null
+  /** For "is this the same place", when working out which trip to start on. */
+  byCode?: ReadonlyMap<string, { lat: number; lon: number }> | undefined
+  /** `newTripName` is set when "New trip…" was chosen: the caller makes the
+      trip, then logs the journey into it. */
+  onAdd: (draft: JourneyDraft, newTripName: string | null) => void
   onClose: () => void
+}
+
+/** The line under "Part of a trip" when the form chose it — a default is never silent. */
+function whyTrip(d: TripDefault, thisYear: string): string {
+  switch (d.reason) {
+    case 'inside': return 'Picked because this date falls inside the trip.'
+    case 'after': return `Picked because this carries on from its journey on ${formatDay(d.lastLeg, thisYear)}.`
+    case 'before': return `Picked because its first journey, on ${formatDay(d.firstLeg, thisYear)}, starts where this one ends.`
+    case 'empty': return `Picked because you made it on ${formatDay(d.madeOn, thisYear)} and it has no journeys yet.`
+  }
 }
 
 /**
@@ -531,7 +550,9 @@ function TrainField({
     </div>
   )
 }
-export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, onClose }: Props) {
+export function AddJourneyForm({
+  stations, journeys = [], initialFrom = null, trips = [], initialTripId = null, byCode, onAdd, onClose,
+}: Props) {
   const { search } = useStationSearch(stations, journeys)
   const { request, between, loading } = useTrainsBetween()
   const { request: requestTimes, legFor } = useTrainTimes()
@@ -592,7 +613,29 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
     arrivalTime === (scheduled.arrival ?? '') &&
     arrivalDayOffset === scheduled.dayOffset
 
-  const ready = from !== null && to !== null && from.code !== to.code && travelledOn !== ''
+  /*
+   * Part of a trip. Untouched, the field follows the evidence — the trip this
+   * date falls in, the trip whose last leg this one carries on from, the empty
+   * trip made for exactly this — recomputed as the stations and the date are
+   * picked, and saying why under the field. Once the person picks, their pick
+   * stands. Never required: the fifteen seconds do not get longer for it.
+   */
+  const [tripPick, setTripPick] = useState<string | null>(null)
+  const [newTripName, setNewTripName] = useState('')
+  const samePlace = useMemo(() => samePlaceFrom(byCode ?? null), [byCode])
+  const autoTrip = useMemo(
+    () => defaultTripFor({
+      journeys, trips, travelledOn, fromCode: from?.code ?? null, toCode: to?.code ?? null, samePlace,
+    }),
+    [journeys, trips, travelledOn, from, to, samePlace],
+  )
+  const tripValue = tripPick ?? initialTripId ?? autoTrip?.tripId ?? ''
+  const tripChoices = useMemo(() => tripOptions(trips, journeys), [trips, journeys])
+  const tripLabelId = useId()
+  const thisYear = String(new Date().getFullYear())
+
+  const ready = from !== null && to !== null && from.code !== to.code && travelledOn !== '' &&
+    (tripValue !== NEW_TRIP || newTripName.trim() !== '')
 
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -661,7 +704,8 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
           departureTime: departureTime || null,
           arrivalTime: arrivalTime || null,
           arrivalDayOffset,
-        })
+          tripId: tripValue === '' || tripValue === NEW_TRIP ? null : tripValue,
+        }, tripValue === NEW_TRIP ? newTripName.trim() : null)
       }}
       className="flex flex-col gap-4 focus:outline-none"
     >
@@ -820,6 +864,35 @@ export function AddJourneyForm({ stations, journeys, initialFrom = null, onAdd, 
           })}
         </div>
       </label>
+
+      {/* A <div>, not a <label>, for the reason TrainField's `labelledBy`
+          documents. Below the date because the date is what decides which
+          trip the form starts on. */}
+      <div className="block">
+        <span id={tripLabelId} className="mb-1.5 block text-label font-semibold tracking-label text-ink-faint uppercase">
+          Part of a trip <span className="text-ink-faint">— optional</span>
+        </span>
+        <TripField
+          options={tripChoices}
+          value={tripValue}
+          onChange={setTripPick}
+          labelledBy={tripLabelId}
+        />
+        {tripValue === NEW_TRIP ? (
+          <label className="mt-2 block">
+            <span className="sr-only">New trip’s name</span>
+            <input
+              value={newTripName}
+              onChange={(e) => { setNewTripName(e.target.value) }}
+              placeholder="Name it for where you’re going — Himachal trip"
+              autoComplete="off"
+              className="w-full rounded-sm border border-line bg-surface px-3 py-2.5 text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+            />
+          </label>
+        ) : tripPick === null && initialTripId === null && autoTrip && tripValue === autoTrip.tripId ? (
+          <p className="mt-1.5 text-sm text-ink-faint">{whyTrip(autoTrip, thisYear)}</p>
+        ) : null}
+      </div>
 
       {showTimes ? (
         <div className="flex flex-col gap-3 rounded-sm border border-line p-3">

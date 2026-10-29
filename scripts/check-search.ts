@@ -24,6 +24,7 @@ const j = (over: Partial<J>): J => ({
   departureTime: null,
   arrivalTime: null,
   arrivalDayOffset: 0,
+  tripId: null,
   ...over,
 })
 

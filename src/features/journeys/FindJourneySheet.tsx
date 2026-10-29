@@ -6,7 +6,8 @@ import type { StationHit } from './searchStations.ts'
 import { useJourneyRoutes } from '@/features/map/useJourneyRoutes.ts'
 import { formatKm } from '@/lib/distance.ts'
 import type { MapData } from '@/features/map/useMapData.ts'
-import type { Journey } from '@/types/index.ts'
+import { formatSpan, journeysByTrip, searchTrips, tripSpan, type TripHit } from '@/features/trips/trips.ts'
+import type { Journey, Trip } from '@/types/index.ts'
 
 /**
  * Quick find — `docs/features/quick-find/prd.md`.
@@ -41,6 +42,12 @@ interface Props {
   onOpenJourney: (journeyId: string) => void
   /** Open the add form with this station prefilled as the origin. */
   onLogFrom: (station: StationHit) => void
+  /**
+   * Trips match by name first and are listed above journeys
+   * (docs/features/trips/prd.md, search); a journey row names its trip.
+   */
+  trips?: readonly Trip[]
+  onOpenTrip?: (tripId: string) => void
 }
 
 /** Five, per `decision.md` answer 3: a search screen, not a browse-the-log screen. */
@@ -83,7 +90,9 @@ function dateParts(travelledOn: string) {
   }
 }
 
-export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJourney, onLogFrom }: Props) {
+export function FindJourneySheet({
+  journeys, data, cardOpen, onClose, onOpenJourney, onLogFrom, trips = NO_TRIPS, onOpenTrip,
+}: Props) {
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
 
@@ -111,7 +120,29 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
      is decided rather than inside the matcher. Typing shows every match. */
   const blank = terms.length === 0 && date === null
   const rows = blank ? hits.slice(0, RECENT_COUNT) : hits
-  const activeIndex = rows.length === 0 ? -1 : Math.min(active, rows.length - 1)
+
+  /*
+   * Trips go first, grouped rather than interleaved — a trip is a different
+   * kind of answer. Not on a blank query: RECENT is the last few journeys,
+   * and a trip is not one. A day query has no trip answer either.
+   */
+  const tripHits = useMemo(
+    () => (blank || date !== null || !onOpenTrip ? [] : searchTrips(trips, query)),
+    [blank, date, onOpenTrip, trips, query],
+  )
+  const tripName = useMemo(() => new Map(trips.map((t) => [t.id, t.name])), [trips])
+  const tripMeta = useMemo(() => {
+    const byTrip = journeysByTrip(journeys, trips)
+    return new Map(trips.map((t) => {
+      const legs = byTrip.get(t.id) ?? []
+      const span = tripSpan(legs)
+      const count = legs.length === 0 ? 'No journeys yet' : legs.length === 1 ? '1 journey' : `${legs.length} journeys`
+      return [t.id, span ? `${formatSpan(span)} · ${count}` : count]
+    }))
+  }, [journeys, trips])
+  /** Trip rows then journey rows, as one list the arrow keys walk. */
+  const total = tripHits.length + rows.length
+  const activeIndex = total === 0 ? -1 : Math.min(active, total - 1)
 
   const listId = useId()
   const optionId = (i: number) => `${listId}-opt-${i}`
@@ -143,8 +174,8 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
     return () => { window.removeEventListener('keydown', onKey) }
   }, [cardOpen, onClose])
 
-  const noResults = !blank && rows.length === 0
-  const countLabel = rows.length === 1 ? '1 match' : `${rows.length} matches`
+  const noResults = !blank && total === 0
+  const countLabel = total === 1 ? '1 match' : `${total} matches`
   const label = blank
     ? 'Recent'
     // Station names and states are missing until stations.json lands, so the
@@ -182,17 +213,19 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       // Otherwise the caret jumps to either end of the query instead.
       e.preventDefault()
-      if (rows.length === 0) return
+      if (total === 0) return
       setActive(
         e.key === 'ArrowDown'
-          ? Math.min(activeIndex + 1, rows.length - 1)
+          ? Math.min(activeIndex + 1, total - 1)
           : Math.max(activeIndex - 1, 0),
       )
       return
     }
     if (e.key === 'Enter') {
       e.preventDefault()
-      const row = rows[activeIndex]
+      const trip = tripHits[activeIndex]
+      if (trip) { onOpenTrip?.(trip.trip.id); return }
+      const row = rows[activeIndex - tripHits.length]
       if (row) onOpenJourney(row.journey.id)
       return
     }
@@ -239,7 +272,7 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
                  dates are typed alongside words. */
               placeholder="Station, state, train, note or date"
               aria-label="Find a journey"
-              aria-controls={rows.length > 0 ? listId : undefined}
+              aria-controls={total > 0 ? listId : undefined}
               aria-activedescendant={activeIndex >= 0 ? optionId(activeIndex) : undefined}
               enterKeyHint="search"
               autoComplete="off"
@@ -292,27 +325,58 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
         )}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {rows.length > 0 && (
-            <div ref={listRef} id={listId} role="listbox" aria-label="Journeys">
-              {rows.map((hit, i) => (
-                <Row
-                  key={hit.journey.id}
-                  hit={hit}
-                  id={optionId(i)}
-                  activeRow={i === activeIndex}
-                  km={kmById.get(hit.journey.id)}
-                  thisYear={thisYear}
-                  onPoint={() => { setActive(i) }}
-                  onOpen={() => { onOpenJourney(hit.journey.id) }}
-                />
-              ))}
+          {total > 0 && (
+            <div ref={listRef} id={listId} role="listbox" aria-label="Trips and journeys">
+              {tripHits.length > 0 && (
+                <div role="group" aria-label="Trips">
+                  <div aria-hidden="true" className="px-4 pt-1 pb-1.5 text-label font-semibold tracking-label text-ink-faint uppercase">
+                    Trips
+                  </div>
+                  {tripHits.map((hit, i) => (
+                    <TripRow
+                      key={hit.trip.id}
+                      hit={hit}
+                      meta={tripMeta.get(hit.trip.id) ?? ''}
+                      id={optionId(i)}
+                      activeRow={i === activeIndex}
+                      onPoint={() => { setActive(i) }}
+                      onOpen={() => { onOpenTrip?.(hit.trip.id) }}
+                    />
+                  ))}
+                </div>
+              )}
+              {rows.length > 0 && (
+                <div role="group" aria-label="Journeys">
+                  {tripHits.length > 0 && (
+                    <div aria-hidden="true" className="border-t border-line px-4 pt-3.5 pb-1.5 text-label font-semibold tracking-label text-ink-faint uppercase">
+                      Journeys
+                    </div>
+                  )}
+                  {rows.map((hit, n) => {
+                    const i = tripHits.length + n
+                    return (
+                      <Row
+                        key={hit.journey.id}
+                        hit={hit}
+                        id={optionId(i)}
+                        activeRow={i === activeIndex}
+                        km={kmById.get(hit.journey.id)}
+                        tripName={hit.journey.tripId === null ? null : tripName.get(hit.journey.tripId) ?? null}
+                        thisYear={thisYear}
+                        onPoint={() => { setActive(i) }}
+                        onOpen={() => { onOpenJourney(hit.journey.id) }}
+                      />
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
           {noResults && (
             <div className="flex flex-col items-start gap-3 px-4 py-5">
               <p className="max-w-[34ch] text-base text-ink-soft">
-                Nothing matches {'“'}{query.trim()}{'”'} in your stations, states, trains,
+                Nothing matches {'“'}{query.trim()}{'”'} in your trips, stations, states, trains,
                 notes or dates.
               </p>
               {suggestion && (
@@ -343,14 +407,53 @@ export function FindJourneySheet({ journeys, data, cardOpen, onClose, onOpenJour
   )
 }
 
+/** Stable empty default, so the memos above do not rerun on every render. */
+const NO_TRIPS: readonly Trip[] = []
+
+/** A trip result: its name, marked, and what it adds up to — so two trips
+    with similar names can be told apart before opening either. */
+function TripRow({
+  hit, meta, id, activeRow, onPoint, onOpen,
+}: {
+  hit: TripHit
+  meta: string
+  id: string
+  activeRow: boolean
+  onPoint: () => void
+  onOpen: () => void
+}) {
+  return (
+    <button
+      type="button"
+      id={id}
+      role="option"
+      aria-selected={activeRow}
+      data-active={activeRow}
+      tabIndex={-1}
+      onPointerMove={onPoint}
+      onClick={onOpen}
+      className={`flex min-h-14 w-full flex-col gap-1.5 border-b border-line px-4 py-2.5 text-left transition-colors duration-150 last:border-b-0 hover:bg-surface-2 ${
+        activeRow ? 'bg-surface-2' : ''
+      }`}
+    >
+      <span className="text-base leading-snug font-semibold text-ink">
+        <Marked text={hit.trip.name} mark={hit.mark} />
+      </span>
+      <span className="tabular text-label tracking-code text-ink-faint uppercase">{meta}</span>
+    </button>
+  )
+}
+
 function Row({
-  hit, id, activeRow, km, thisYear, onPoint, onOpen,
+  hit, id, activeRow, km, tripName, thisYear, onPoint, onOpen,
 }: {
   hit: JourneyHit
   id: string
   activeRow: boolean
   /** Undefined when the rail graph has no route — the NOT DRAWN case. */
   km: number | undefined
+  /** The trip it is part of, as context — never why it matched. */
+  tripName: string | null
   thisYear: string
   onPoint: () => void
   onOpen: () => void
@@ -421,6 +524,12 @@ function Row({
           </span>
         ) : (
           <span className="tabular tracking-code">{formatKm(km)}</span>
+        )}
+        {tripName !== null && (
+          <>
+            <Dot />
+            <span className="tracking-label text-ink-soft">{tripName}</span>
+          </>
         )}
         {hit.matchedStates.map((state) => (
           <span key={state.name} className="flex items-center gap-1.5">
