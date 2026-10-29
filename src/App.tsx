@@ -17,6 +17,12 @@ import { Milestones } from '@/features/stats/Milestones.tsx'
 import { RailPass } from '@/features/railpass/RailPass.tsx'
 import { StatNumber } from '@/features/stats/StatNumber.tsx'
 import { createTally, type Totals } from '@/features/stats/tally.ts'
+import { TripsSheet, type TripTarget } from '@/features/trips/TripsSheet.tsx'
+import { TripPanel } from '@/features/trips/TripPanel.tsx'
+import { tripOptions } from '@/features/trips/TripField.tsx'
+import { byTravelDate, samePlaceFrom, suggestTrips, unsortedJourneys } from '@/features/trips/trips.ts'
+import { addDismissed, readDismissed } from '@/features/trips/tripStorage.ts'
+import { showToast } from '@/components/toast.ts'
 
 interface Stats {
   km: number
@@ -92,6 +98,69 @@ export default function App() {
   const [findOpen, setFindOpen] = useState(false)
   const [milestonesOpen, setMilestonesOpen] = useState(false)
   const [railPassOpen, setRailPassOpen] = useState(false)
+
+  /*
+   * Trips — docs/features/trips/prd.md. The list is a sheet; a trip, once
+   * opened, is a lens on the map plus a panel, with no scrim, because looking
+   * at the map is the point of opening one. `entryTripId` seeds the add form
+   * when a trip's own "Log a journey into it" opened it.
+   */
+  const trips = store.trips
+  const [tripsOpen, setTripsOpen] = useState(false)
+  const [tripTarget, setTripTarget] = useState<TripTarget | null>(null)
+  const [entryTripId, setEntryTripId] = useState<string | null>(null)
+  const openTrip = useCallback((target: TripTarget) => {
+    setTripTarget(target)
+    // Framed once, on opening — not again every time a leg joins or leaves.
+    const ids = (target.kind === 'trip'
+      ? journeys.filter((j) => j.tripId === target.id)
+      : unsortedJourneys(journeys, trips)).map((j) => j.id)
+    mapRef.current?.flyToJourneys(ids)
+  }, [journeys, trips])
+
+  const openedTrip = tripTarget?.kind === 'trip' ? trips.find((t) => t.id === tripTarget.id) ?? null : null
+  const tripLegs = useMemo(() => {
+    if (!tripTarget) return []
+    return tripTarget.kind === 'trip'
+      ? journeys.filter((j) => j.tripId === tripTarget.id).sort(byTravelDate)
+      : unsortedJourneys(journeys, trips)
+  }, [tripTarget, journeys, trips])
+  const lens = useMemo(() => (tripTarget ? new Set(tripLegs.map((j) => j.id)) : null), [tripTarget, tripLegs])
+  // A trip deleted while open — here, or by the sync bringing in a delete
+  // from another device — takes its lens with it.
+  useEffect(() => {
+    if (tripTarget?.kind === 'trip' && !trips.some((t) => t.id === tripTarget.id)) setTripTarget(null)
+  }, [tripTarget, trips])
+  const tripChoices = useMemo(() => tripOptions(trips, journeys), [trips, journeys])
+
+  /* "These journeys look like one trip" — offered, never applied, and
+     forgotten per device once answered "Not a trip". */
+  const viewer = auth.user?.id ?? null
+  const [dismissedRev, setDismissedRev] = useState(0)
+  const dismissed = useMemo(() => readDismissed(viewer), [viewer, dismissedRev])
+  const samePlace = useMemo(() => samePlaceFrom(mapData?.byCode ?? null), [mapData])
+  const suggestion = useMemo(
+    () => suggestTrips({ journeys, trips, samePlace, dismissed })[0] ?? null,
+    [journeys, trips, samePlace, dismissed],
+  )
+
+  /** Journeys moved by hand get the same quiet line as an add or a delete,
+      with the way back on it. */
+  const moveJourneys = useCallback((ids: readonly string[], tripId: string | null, message: string) => {
+    const before = new Map<string | null, string[]>()
+    for (const j of journeys) {
+      if (!ids.includes(j.id) || j.tripId === tripId) continue
+      const group = before.get(j.tripId)
+      if (group) group.push(j.id)
+      else before.set(j.tripId, [j.id])
+    }
+    store.setJourneysTrip(ids, tripId)
+    showToast({
+      id: `trip-move-${ids.join(',')}`,
+      message,
+      action: { label: 'Undo', run: () => { for (const [prev, group] of before) store.setJourneysTrip(group, prev) } },
+    })
+  }, [journeys, store])
   /**
    * The route whose tooltip was opened to full detail — there is no
    * standalone "browse everything" entry point: it opens from a route's own
@@ -150,13 +219,13 @@ export default function App() {
       if (el instanceof HTMLElement &&
           (el.isContentEditable || el instanceof HTMLInputElement ||
            el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) return
-      if (entryOpen || milestonesOpen || railPassOpen || routeTarget || findOpen) return
+      if (entryOpen || milestonesOpen || railPassOpen || routeTarget || findOpen || tripsOpen) return
       e.preventDefault()
       setFindOpen(true)
     }
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey) }
-  }, [mine, entryOpen, milestonesOpen, railPassOpen, routeTarget, findOpen])
+  }, [mine, entryOpen, milestonesOpen, railPassOpen, routeTarget, findOpen, tripsOpen])
   /** Every journey between the same two stations, either direction — a
       round trip traces the same line on the map, so it reads as one route,
       not two. */
@@ -274,6 +343,7 @@ export default function App() {
           if (!clicked) return
           setRouteTarget({ initialJourneyId: journeyId, fromCode: clicked.fromCode, toCode: clicked.toCode })
         }}
+        lens={lens}
       />
 
       {/* Roadmap Phase 1, item 8. This was the loudest thing on screen and it
@@ -456,7 +526,7 @@ export default function App() {
             and an alarm colour for a tunnel on the Konkan line would teach
             people to ignore the colour. Hidden when all is well; there is no
             "Synced ✓" — the absence of this is the success state. */}
-        {signedIn && !demo && (store.sync.readFailed || store.sync.pending > 0) && (
+        {signedIn && !demo && (store.sync.readFailed || store.sync.pending > 0 || store.sync.tripChanges > 0) && (
           <div
             role="status"
             className="pointer-events-auto flex max-w-80 items-center gap-3 rounded-sm border border-line bg-surface py-1 pr-1 pl-3"
@@ -464,11 +534,16 @@ export default function App() {
             <p className="mb-0 py-1.5 text-xs leading-relaxed text-ink-soft">
               {store.sync.readFailed ? (
                 <>Couldn&rsquo;t reach your account, so only the journeys saved on this device are showing. Nothing has been lost.</>
-              ) : (
+              ) : store.sync.pending > 0 ? (
                 <>
                   <span className="tabular text-ink">{store.sync.pending}</span>{' '}
                   {store.sync.pending === 1 ? 'journey isn’t' : 'journeys aren’t'} in your account yet. They&rsquo;re
                   kept on this device and will go up when you&rsquo;re back online.
+                </>
+              ) : (
+                <>
+                  Your latest trip changes aren&rsquo;t in your account yet. They&rsquo;re kept on this device
+                  and will go up when you&rsquo;re back online.
                 </>
               )}
             </p>
@@ -507,22 +582,42 @@ export default function App() {
             milestone locked, and the pass would hand out a shareable card
             reading 0 km / 0 stations / 0 states, which looks broken rather
             than empty. */}
-        {mine > 0 && (
-          <div className="pointer-events-auto flex gap-2">
+        {/* Trips joins this row, and appears with a trip even at zero
+            journeys — a trip made before setting off is something to come
+            back to. It wraps to its own line before it can reach under the
+            corner buttons on a narrow phone. The dot is a suggestion waiting
+            ("these journeys look like one trip"); it goes when answered. */}
+        {(mine > 0 || trips.length > 0) && (
+          <div className="pointer-events-auto flex max-w-[calc(100vw-5.5rem)] flex-wrap gap-2 sm:max-w-none">
+            {mine > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => { setMilestonesOpen(true) }}
+                  className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+                >
+                  Milestones
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setRailPassOpen(true) }}
+                  disabled={!mapData}
+                  className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
+                >
+                  Rail pass
+                </button>
+              </>
+            )}
             <button
               type="button"
-              onClick={() => { setMilestonesOpen(true) }}
-              className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
+              onClick={() => { setTripTarget(null); setTripsOpen(true) }}
+              aria-label={suggestion ? 'Trips — some journeys look like one trip' : 'Trips'}
+              className="relative rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
             >
-              Milestones
-            </button>
-            <button
-              type="button"
-              onClick={() => { setRailPassOpen(true) }}
-              disabled={!mapData}
-              className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
-            >
-              Rail pass
+              Trips
+              {suggestion && (
+                <span aria-hidden="true" className="absolute -top-1 -right-1 size-2 rounded-full bg-accent ring-2 ring-ground" />
+              )}
             </button>
           </div>
         )}
@@ -582,6 +677,66 @@ export default function App() {
         </div>
       )}
 
+      {tripTarget && (
+        <TripPanel
+          key={tripTarget.kind === 'trip' ? tripTarget.id : 'unsorted'}
+          trip={openedTrip}
+          legs={tripLegs}
+          allJourneys={journeys}
+          trips={trips}
+          data={mapData}
+          covered={entryOpen || routeTarget !== null || findOpen || tripsOpen || milestonesOpen || railPassOpen}
+          onClose={() => { setTripTarget(null) }}
+          onOpenJourney={(journeyId) => {
+            const opened = journeys.find((j) => j.id === journeyId)
+            if (!opened) return
+            setRouteTarget({ initialJourneyId: journeyId, fromCode: opened.fromCode, toCode: opened.toCode })
+          }}
+          onLogInto={() => {
+            if (!openedTrip) return
+            setPrefillFrom(null)
+            setEntryTripId(openedTrip.id)
+            setEntryOpen(true)
+          }}
+          onAdd={(ids) => {
+            if (!openedTrip) return
+            moveJourneys(ids, openedTrip.id,
+              `Added ${ids.length === 1 ? '1 journey' : `${ids.length} journeys`} to ${openedTrip.name}.`)
+            mapRef.current?.flyToJourneys([...tripLegs.map((j) => j.id), ...ids])
+          }}
+          onTakeOut={(journeyId) => {
+            const j = journeys.find((x) => x.id === journeyId)
+            if (!j || !openedTrip) return
+            moveJourneys([journeyId], null,
+              `Took ${j.fromCode} · ${j.toCode} out of ${openedTrip.name}. It’s still on the map.`)
+          }}
+          onSave={(patch) => { if (openedTrip) store.updateTrip(openedTrip.id, patch) }}
+          onDelete={() => {
+            if (!openedTrip) return
+            store.deleteTrip(openedTrip.id)
+            setTripTarget(null)
+          }}
+        />
+      )}
+
+      {tripsOpen && (
+        <TripsSheet
+          trips={trips}
+          journeys={journeys}
+          data={mapData}
+          suggestion={suggestion}
+          onClose={() => { setTripsOpen(false) }}
+          onOpen={(target) => { setTripsOpen(false); openTrip(target) }}
+          onCreate={(name, note) => store.createTrip(name, note)}
+          onGroup={(name, ids) => {
+            const trip = store.createTrip(name, null)
+            store.setJourneysTrip(ids, trip.id)
+            return trip
+          }}
+          onDismissSuggestion={(key) => { addDismissed(viewer, key); setDismissedRev((n) => n + 1) }}
+        />
+      )}
+
       {/* Rendered before JourneysSheet, and a layer below it: opening a result
           leaves this sheet mounted underneath, because closing the card has to
           return to the same results at the same scroll position — which is not
@@ -605,6 +760,11 @@ export default function App() {
             setPrefillFrom(station)
             setEntryOpen(true)
           }}
+          trips={trips}
+          onOpenTrip={(tripId) => {
+            setFindOpen(false)
+            openTrip({ kind: 'trip', id: tripId })
+          }}
         />
       )}
 
@@ -623,6 +783,24 @@ export default function App() {
             mapRef.current?.flyToJourney(journeyId)
           }}
           onRemove={(journeyId) => { store.remove(journeyId) }}
+          trips={{
+            options: tripChoices,
+            onSet: (journeyId, tripId) => {
+              const name = tripId === null ? null : trips.find((t) => t.id === tripId)?.name ?? null
+              const j = journeys.find((x) => x.id === journeyId)
+              const what = j ? `${j.fromCode} · ${j.toCode}` : 'That journey'
+              moveJourneys([journeyId], tripId, name ? `Moved ${what} into ${name}.` : `Took ${what} out of its trip. It’s still on the map.`)
+            },
+            onNew: (journeyId, name) => {
+              const trip = store.createTrip(name, null)
+              store.setJourneysTrip([journeyId], trip.id)
+            },
+            onOpen: (tripId) => {
+              setRouteTarget(null)
+              setFindOpen(false)
+              openTrip({ kind: 'trip', id: tripId })
+            },
+          }}
         />
       )}
 
@@ -636,12 +814,19 @@ export default function App() {
               stations={mapData?.stations}
               journeys={journeys}
               initialFrom={prefillFrom}
-              onAdd={(draft) => {
-                store.add(draft, mapData?.graph ?? null)
+              trips={trips}
+              initialTripId={entryTripId}
+              byCode={mapData?.byCode}
+              onAdd={(draft, newTripName) => {
+                // A new trip is made first, so the journey has it to point at
+                // — and, signed in, so the trip reaches the server first.
+                const tripId = newTripName !== null ? store.createTrip(newTripName, null).id : draft.tripId
+                store.add({ ...draft, tripId }, mapData?.graph ?? null)
                 setEntryOpen(false)
                 setPrefillFrom(null)
+                setEntryTripId(null)
               }}
-              onClose={() => { setEntryOpen(false); setPrefillFrom(null) }}
+              onClose={() => { setEntryOpen(false); setPrefillFrom(null); setEntryTripId(null) }}
             />
           </div>
         </div>

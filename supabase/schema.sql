@@ -76,3 +76,47 @@ group by user_id;
 
 -- Stations seen and states unlocked are computed in the client, because the
 -- station -> state mapping lives in the shipped JSON file rather than here.
+
+-- ── Trips ──────────────────────────────────────────────────────────────────
+-- docs/features/trips/prd.md. Run this block before deploying a build that
+-- has trips: until `journeys.trip_id` exists, a journey saved into a trip is
+-- refused (it stays pending on the device and is re-sent — nothing is lost),
+-- and the trips list cannot be read.
+--
+-- Only what the person typed is stored. Dates, kilometres and states are
+-- derived from the journeys, like every other figure here. A trip with no
+-- journeys is allowed: trips are made before the travel as often as after.
+
+create table if not exists trips (
+  id          uuid primary key,              -- minted on the device, like journey ids
+  user_id     uuid not null references auth.users(id) on delete cascade,
+  name        text not null check (length(trim(name)) > 0),
+  note        text,
+  created_at  timestamptz not null default now(),
+  -- The target of the composite foreign key below.
+  unique (id, user_id)
+);
+
+alter table trips enable row level security;
+
+drop policy if exists "own trips only" on trips;
+create policy "own trips only" on trips
+  for all
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+alter table journeys add column if not exists trip_id uuid;
+
+-- Composite, so a journey can only ever point at a trip of the same person:
+-- row-level security stops reading someone else's trip, and this stops
+-- writing into one. `on delete set null (trip_id)` (Postgres 15+) is the line
+-- that matters most — deleting a trip clears trip_id and nothing else, so the
+-- journeys stay, unsorted, and the map does not change. A plain `set null`
+-- would try to null user_id too and fail the not-null.
+alter table journeys drop constraint if exists journeys_trip_fk;
+alter table journeys add constraint journeys_trip_fk
+  foreign key (trip_id, user_id) references trips (id, user_id)
+  on delete set null (trip_id);
+
+create index if not exists journeys_trip_idx
+  on journeys (trip_id) where trip_id is not null;

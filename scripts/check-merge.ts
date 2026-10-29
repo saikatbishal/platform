@@ -25,6 +25,7 @@ const j = (over: Partial<J>): J => ({
   departureTime: null,
   arrivalTime: null,
   arrivalDayOffset: 0,
+  tripId: null,
   ...over,
 } as J)
 
@@ -147,6 +148,52 @@ const check = (name: string, ok: boolean) => {
   const { toSend, fromAnon, anonAlreadyThere } = planSync(server, [], anon)
   check('first sign-in: only the new signed-out trip is sent', toSend.length === 1 && fromAnon.has(anon[1]!.id))
   check('first sign-in: the duplicate is confirmed, not sent', anonAlreadyThere.length === 1 && anonAlreadyThere[0] === anon[0]!.id)
+}
+
+// ── Trips: the adopt rule (docs/features/trips/prd.md) ──────────────────────
+
+// Grouped on the phone before signing in; the account had the same journeys bare.
+{
+  const server = [j({ travelledOn: '2026-10-03', tripId: null })]
+  const anon = [j({ travelledOn: '2026-10-03', tripId: 'trip-himachal' })]
+  const { merged, added, adopted } = mergeJourneys(server, anon)
+  check('the account copy adopts the signed-out copy’s trip', merged.length === 1 && merged[0]?.tripId === 'trip-himachal')
+  check('…keeping the account copy’s id', merged[0]?.id === server[0]?.id && added.length === 0)
+  check('…and says which row changed', adopted.length === 1 && adopted[0]?.id === server[0]?.id)
+}
+
+// The account copy already has a trip: it keeps its own.
+{
+  const server = [j({ travelledOn: '2026-10-05', tripId: 'trip-a' })]
+  const anon = [j({ travelledOn: '2026-10-05', tripId: 'trip-b' })]
+  const { merged, adopted } = mergeJourneys(server, anon)
+  check('a journey already in a trip keeps it', merged[0]?.tripId === 'trip-a' && adopted.length === 0)
+}
+
+// Nothing to adopt: neither side in a trip.
+{
+  const s = j({ travelledOn: '2026-10-06' })
+  const { merged, adopted } = mergeJourneys([s], [j({ travelledOn: '2026-10-06' })])
+  check('no trip on either side changes nothing', merged[0] === s && adopted.length === 0)
+}
+
+// A new journey arrives with its trip id intact.
+{
+  const { merged } = mergeJourneys([], [j({ travelledOn: '2026-10-13', tripId: 'trip-himachal' })])
+  check('a carried-over journey keeps its trip', merged[0]?.tripId === 'trip-himachal')
+}
+
+// Through the planner: unsent copy adopts in the insert, saved copy needs an update.
+{
+  const saved = j({ travelledOn: '2026-10-03' })
+  const unsent = j({ travelledOn: '2026-10-05' })
+  const anon = [
+    j({ travelledOn: '2026-10-03', tripId: 'trip-himachal' }),
+    j({ travelledOn: '2026-10-05', tripId: 'trip-himachal' }),
+  ]
+  const { toSend, adopted } = planSync([saved], [unsent], anon)
+  check('planner: the saved twin is listed for an update', adopted.some((a) => a.id === saved.id && a.tripId === 'trip-himachal'))
+  check('planner: the unsent twin is sent already in the trip', toSend.length === 1 && toSend[0]?.id === unsent.id && toSend[0]?.tripId === 'trip-himachal')
 }
 
 console.log(failed === 0 ? '\nall checks passed' : `\n${failed} FAILED`)
