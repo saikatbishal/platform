@@ -9,6 +9,9 @@ interface Props {
   data: MapData
   journeys: readonly Journey[]
   stats: { km: number; stations: number; states: number }
+  /** Present when the pass is opened from inside the ledger: a way back to
+      the totals that does not close the sheet. */
+  onBack?: () => void
   onClose: () => void
 }
 
@@ -246,7 +249,7 @@ function drawCard(canvas: HTMLCanvasElement, args: {
  * routes, the date. Rendered client-side, downloadable, shared where the
  * browser supports handing a file to the OS share sheet.
  */
-export function RailPass({ data, journeys, stats, onClose }: Props) {
+export function RailPass({ data, journeys, stats, onBack, onClose }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const { routes } = useJourneyRoutes(data, journeys)
   const [canShareFiles, setCanShareFiles] = useState(false)
@@ -305,9 +308,19 @@ export function RailPass({ data, journeys, stats, onClose }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-label font-semibold tracking-label text-ink-faint uppercase">
-          Rail pass
-        </h2>
+        {/* -ml-1 for the same reason the icon group is -mr-1: the 44px target
+            carries 4px around its 36px square, and it is the square that
+            should line up with the sheet's 20px padding. */}
+        <div className={`flex items-center gap-1.5 ${onBack ? '-ml-1' : ''}`}>
+          {onBack && (
+            <IconButton label="Back to the ledger" onClick={onBack}>
+              <path d="M14 6l-6 6 6 6" />
+            </IconButton>
+          )}
+          <h2 className="text-label font-semibold tracking-label text-ink-faint uppercase">
+            Rail pass
+          </h2>
+        </div>
         {/* Icon-only, so each carries its name twice: aria-label for a screen
             reader, title for a pointer. 44px targets with a 36px visible
             square, the same trade the map's find button makes. */}
