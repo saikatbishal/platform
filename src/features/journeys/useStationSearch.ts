@@ -18,6 +18,10 @@ export function useStationSearch(
   journeys: readonly Journey[] = [],
 ): {
   search: (query: string, limit?: number) => StationHit[]
+  /** One station as a search row, by code — for the suggestion chips, so
+      they carry exactly what a typed result would. Null for a code the
+      station list doesn't have. */
+  hitFor: (code: string) => StationHit | null
   ranked: boolean
 } {
   const [rank, setRank] = useState<Readonly<Record<string, number>> | null>(null)
@@ -61,5 +65,19 @@ export function useStationSearch(
     [index, rank, homeStates],
   )
 
-  return { search, ranked: rank !== null }
+  const rowByCode = useMemo(
+    () => new Map(index?.rows.map((row) => [row.station.code, row]) ?? []),
+    [index],
+  )
+  const hitFor = useCallback(
+    (code: string): StationHit | null => {
+      const row = rowByCode.get(code)
+      return row
+        ? { code: row.station.code, name: row.station.name, state: row.station.state, trains: rank?.[code] ?? 0, twin: row.twin }
+        : null
+    },
+    [rowByCode, rank],
+  )
+
+  return { search, hitFor, ranked: rank !== null }
 }
