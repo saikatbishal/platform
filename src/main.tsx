@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.tsx'
 import { AuthProvider } from './features/auth/AuthProvider.tsx'
+import { registerOffline } from './features/offline/registerOffline.ts'
 import './styles/index.css'
 
 const queryClient = new QueryClient({
@@ -19,6 +20,9 @@ const queryClient = new QueryClient({
 const root = document.getElementById('root')
 if (!root) throw new Error('No #root element in index.html')
 
+// After the first render is queued, not before: the worker's install
+// downloads every precached file, and that should never compete with the
+// first paint for bandwidth.
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -28,3 +32,5 @@ createRoot(root).render(
     </QueryClientProvider>
   </StrictMode>,
 )
+
+registerOffline()

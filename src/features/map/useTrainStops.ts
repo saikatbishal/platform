@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { retryWhenOnline } from '@/lib/online.ts'
 
 /**
  * Stop lists for trains the user has actually ridden, fetched a shard at a
@@ -24,8 +25,9 @@ export interface TrainStops {
 
 export function useTrainStops(): TrainStops {
   const [stops, setStops] = useState<ReadonlyMap<string, readonly string[]>>(new Map())
-  /** Shard keys already fetched or in flight. Never retried: a miss is a
-      permanent fact about the data, not a transient failure worth hammering. */
+  /** Shard keys already fetched or in flight. A 404 is never retried — a
+      miss is a permanent fact about the data. A network failure is: see
+      the catch below. */
   const requested = useRef(new Set<string>())
 
   const request = useCallback((trainNumber: string) => {
@@ -53,8 +55,12 @@ export function useTrainStops(): TrainStops {
       .catch((e: unknown) => {
         // Never fatal. Without a stop list the journey is still drawn, just by
         // the inferred shortest path, which is what happened for every journey
-        // before this existed.
+        // before this existed. But offline with the shard not yet cached is
+        // temporary, so forget the attempt and try again on reconnect — the
+        // line then redraws along the train's own stops.
         if (import.meta.env.DEV) console.warn(`[map] train shard ${key} failed`, e)
+        requested.current.delete(key)
+        retryWhenOnline(() => { request(key) })
       })
   }, [])
 

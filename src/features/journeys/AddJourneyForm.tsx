@@ -673,7 +673,7 @@ export function AddJourneyForm({
   stations, journeys = [], initialFrom = null, trips = [], initialTripId = null, byCode, onAdd, onClose,
 }: Props) {
   const { search, hitFor } = useStationSearch(stations, journeys)
-  const { request, between, loading } = useTrainsBetween()
+  const { request, between, loading, unreachable } = useTrainsBetween()
   const { request: requestTimes, legFor } = useTrainTimes()
 
   const [from, setFrom] = useState<StationHit | null>(initialFrom)
@@ -925,6 +925,26 @@ export function AddJourneyForm({
           </span>
           {loading && trains.length === 0 ? (
             <p className="rounded-sm border border-line px-3 py-2.5 text-sm text-ink-faint">Looking…</p>
+          ) : trains.length === 0 && unreachable(from.code, to.code) ? (
+            /* Offline, with these stations' timetable not yet on the device.
+               Not "no through train" — that would be a claim about the
+               timetable, and the timetable was never asked. The field stays,
+               empty but for the hand-entry option, so a train number can
+               still be recorded; the list fills in by itself on reconnect. */
+            <div className="flex flex-col gap-2">
+              <p className="mb-0 rounded-sm border border-line px-3 py-2.5 text-sm text-ink-faint">
+                You&rsquo;re offline, and the trains for these stations aren&rsquo;t on this device yet.
+                Log it now. If you know the train, pick &ldquo;A train that isn&rsquo;t listed&rdquo; and
+                type its number; the line follows it once you&rsquo;re back online.
+              </p>
+              <TrainField
+                trains={[]}
+                value={train}
+                onChange={setTrain}
+                custom={CUSTOM}
+                labelledBy={trainLabelId}
+              />
+            </div>
           ) : trains.length === 0 ? (
             /* Not an error: 450 stations have no timetable at all, and two real
                stations can sit on different parts of the network. The journey

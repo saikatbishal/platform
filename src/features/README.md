@@ -16,6 +16,13 @@ components, hooks, and queries, and exports only what other features need.
   stored; everything a trip adds up to is derived. Storage and sync live in
   `journeys/useJourneys.ts`, because the two share one write queue. Spec:
   `docs/features/trips/prd.md`.
+- **offline/** — the service worker's page half: registers it, offers the
+  reload when a new version is waiting, and deletes caches older versions
+  left. What is cached, and how it is versioned, is in `vite.config.ts`: the
+  shell and up-front data are precached per file by content hash; timetable
+  shards are kept as fetched, in a cache named for the app version plus a
+  hash of the shard data.
+  
 - **onboarding/** — the first-visit tour: coach marks over a spotlight, one
   per control a new visitor can actually see. Shown once per device
   (`platform.tour.v1` in localStorage); `?tour` in the URL forces it. No

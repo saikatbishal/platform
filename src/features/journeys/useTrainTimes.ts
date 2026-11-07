@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { retryWhenOnline } from '@/lib/online.ts'
 
 /**
  * What the timetable says a train is scheduled to do at two stations.
@@ -53,6 +54,9 @@ export function useTrainTimes(): TrainTimesLookup {
         // Never fatal. Without times the fields simply stay empty and are
         // typed by hand, which is what happened before this existed.
         if (import.meta.env.DEV) console.warn(`[journeys] times for ${key} failed`, e)
+        // No network is not "no times" — see lib/online.ts.
+        asked.current.delete(key)
+        retryWhenOnline(() => { request(key) })
       })
   }, [])
 

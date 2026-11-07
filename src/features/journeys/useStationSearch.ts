@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { retryWhenOnline } from '@/lib/online.ts'
 import { buildSearchIndex, searchStations, type StationHit } from './searchStations.ts'
 import type { Journey, Station } from '@/types/index.ts'
 
@@ -28,12 +29,18 @@ export function useStationSearch(
 
   useEffect(() => {
     let cancelled = false
-    fetch(`${import.meta.env.BASE_URL}maps/stationrank.json`)
-      .then((res) => (res.ok ? (res.json() as Promise<Record<string, number>>) : null))
-      .then((r) => { if (!cancelled && r) setRank(r) })
-      .catch((e: unknown) => {
-        if (import.meta.env.DEV) console.warn('[journeys] station rank failed', e)
-      })
+    const load = () => {
+      fetch(`${import.meta.env.BASE_URL}maps/stationrank.json`)
+        .then((res) => (res.ok ? (res.json() as Promise<Record<string, number>>) : null))
+        .then((r) => { if (!cancelled && r) setRank(r) })
+        .catch((e: unknown) => {
+          if (import.meta.env.DEV) console.warn('[journeys] station rank failed', e)
+          // Precached, so this only fails offline before the first install
+          // finished. Ranking arrives on reconnect, mid-form if need be.
+          if (!cancelled) retryWhenOnline(load)
+        })
+    }
+    load()
     return () => { cancelled = true }
   }, [])
 
