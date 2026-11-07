@@ -906,12 +906,12 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
                 shows. */}
             {lensRoutes?.inferred && (
               <path d={lensRoutes.inferred} fill="none"
-                className="stroke-route-taken [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]"
+                className="stroke-route-lens [vector-effect:non-scaling-stroke] [stroke-dasharray:6_4]"
                 strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
             {lensRoutes?.exact && (
               <path d={lensRoutes.exact} fill="none"
-                className="stroke-route-taken [vector-effect:non-scaling-stroke]"
+                className="stroke-route-lens [vector-effect:non-scaling-stroke]"
                 strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
             )}
             {/* An unroutable endpoint keeps its position and its colour — the
@@ -924,18 +924,24 @@ export function IndiaMap({ journeys, data, error, loadDistricts, onStats, onTall
                 cx={e.x} cy={e.y} r={4}
                 className={
                   /* Outside a lens, an end dims with its line — the you-are-here
-                     dot too, when the latest journey is not the trip's. */
+                     dot too, when the latest journey is not the trip's. Inside
+                     the lens, every station wears --route-lens so the trip reads
+                     as one brick-red event on the map. */
                   lensCodes && !lensCodes.has(e.code)
                     ? e.unroutable
                       ? 'fill-none stroke-line-strong [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke]'
                       : 'fill-line-strong stroke-ground [vector-effect:non-scaling-stroke]'
-                    : e.unroutable
-                      ? `fill-none [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke] ${
-                          e.last ? 'stroke-you-are-here' : 'stroke-station-seen'
-                        }`
-                      : e.last
-                        ? 'fill-you-are-here stroke-ground [vector-effect:non-scaling-stroke]'
-                        : 'fill-station-seen stroke-ground [vector-effect:non-scaling-stroke]'
+                    : lensCodes
+                      ? e.unroutable
+                        ? 'fill-none stroke-route-lens [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke]'
+                        : 'fill-route-lens stroke-ground [vector-effect:non-scaling-stroke]'
+                      : e.unroutable
+                        ? `fill-none [stroke-dasharray:2.2_1.8] [vector-effect:non-scaling-stroke] ${
+                            e.last ? 'stroke-you-are-here' : 'stroke-station-seen'
+                          }`
+                        : e.last
+                          ? 'fill-you-are-here stroke-ground [vector-effect:non-scaling-stroke]'
+                          : 'fill-station-seen stroke-ground [vector-effect:non-scaling-stroke]'
                 }
                 strokeWidth={1.8}>
                 {e.unroutable && <title>{e.name} — no rail-graph data, so no line is drawn</title>}

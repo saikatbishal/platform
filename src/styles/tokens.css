@@ -82,6 +82,11 @@
     --board-edge:   #F7F3EA;   /* the white enamel border around every board */
     --board-frame:  #6E645A;   /* the bracket and posts it hangs from */
 
+    /* the trip lens — brick red, the colour of a platform edge. When a trip
+       is open, its routes and endpoints wear this instead of --route-taken,
+       so the selection reads as one event against the dimmed-out rest. */
+    --route-lens:    var(--vermillion);
+
     /* map semantics — derived, so intent is in one place */
     /* The travelled route is --ink: coach navy on paper, near-white on the
        night ground. One definition, both themes, because --ink already flips.
@@ -134,6 +139,8 @@
       --vermillion:  #B4302A;
       --oxide:       #6B3524;
       --steel:       #6E645A;
+
+      --route-lens:  var(--oxide);
     }
   }
 
@@ -155,6 +162,7 @@
     --vermillion:  #B4302A;
     --oxide:       #6B3524;
     --steel:       #6E645A;
+    --route-lens:  var(--oxide);
     --land:        #EDE8DD;
     --land-visited:#D5B87E;
     --dot:         #8C8375;
