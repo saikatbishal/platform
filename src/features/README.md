@@ -16,6 +16,11 @@ components, hooks, and queries, and exports only what other features need.
   stored; everything a trip adds up to is derived. Storage and sync live in
   `journeys/useJourneys.ts`, because the two share one write queue. Spec:
   `docs/features/trips/prd.md`.
+- **onboarding/** — the first-visit tour: coach marks over a spotlight, one
+  per control a new visitor can actually see. Shown once per device
+  (`platform.tour.v1` in localStorage); `?tour` in the URL forces it. No
+  library — one SVG path with an `evenodd` hole, so the spotlit control stays
+  tappable through it.
 
 Cross-feature code goes in `src/lib` (pure functions) or `src/components`
 (presentational, no feature knowledge).

@@ -23,6 +23,8 @@ import { tripOptions } from '@/features/trips/TripField.tsx'
 import { byTravelDate, samePlaceFrom, suggestTrips, unsortedJourneys } from '@/features/trips/trips.ts'
 import { addDismissed, readDismissed } from '@/features/trips/tripStorage.ts'
 import { showToast } from '@/components/toast.ts'
+import { Tour, type TourStep } from '@/features/onboarding/Tour.tsx'
+import { hasSeenTour, markTourSeen, tourForced } from '@/features/onboarding/tourStorage.ts'
 
 interface Stats {
   km: number
@@ -247,6 +249,68 @@ export default function App() {
   )
 
   /*
+   * The first-visit tour — features/onboarding/Tour.tsx. Decided once per
+   * load, and only once everything it points at is real: the map data is in
+   * (so the map is not a loading state), auth has settled (so the sign-in
+   * mark is on screen, or known not to be), and the journeys have loaded (so
+   * a signed-in account's journeys, which arrive from the server after first
+   * render, cannot make a returning person look new for a frame).
+   *
+   * Someone who already has journeys is not a first visitor, whatever the
+   * flag says — they used the app before the tour existed. They are marked
+   * as having seen it rather than shown it.
+   */
+  const [tourOpen, setTourOpen] = useState(false)
+  const [tourDecided, setTourDecided] = useState(false)
+  useEffect(() => {
+    if (tourDecided || !mapData || !store.loaded || auth.status === 'loading') return
+    setTourDecided(true)
+    if (tourForced()) { setTourOpen(true); return }
+    if (hasSeenTour()) return
+    if (mine > 0) { markTourSeen(); return }
+    setTourOpen(true)
+  }, [tourDecided, mapData, store.loaded, auth.status, mine])
+  const endTour = useCallback(() => { markTourSeen(); setTourOpen(false) }, [])
+
+  /*
+   * Four stops, and only the controls a first visitor can actually see. Find,
+   * Milestones, Rail pass and Trips all wait for a first journey, so pointing
+   * at them would mean pointing at nothing; the last step says they are
+   * coming instead. Sign-in drops out for anyone already signed in.
+   */
+  const tourSteps = useMemo((): TourStep[] => [
+    {
+      id: 'map',
+      target: null,
+      title: 'This map starts empty',
+      body: 'Every journey you log is drawn here along the track the train actually runs on, and each state it crosses fills in. Drag to look around; scroll or pinch to zoom.',
+      phoneBody: 'Every journey you log is drawn here along the track the train actually runs on, and each state it crosses fills in. Drag to look around; pinch to zoom.',
+    },
+    {
+      id: 'totals',
+      target: 'totals',
+      title: 'Your totals',
+      body: 'Kilometres, stations, states and your longest run, all counted from the journeys on the map. Nothing here is typed in by hand.',
+      phoneBody: 'Tap Stats for kilometres, stations, states and your longest run, all counted from the journeys on the map. Nothing here is typed in by hand.',
+    },
+    ...(signedIn ? [] : [{
+      id: 'sign-in',
+      target: 'sign-in',
+      title: 'An account is optional',
+      body: demo
+        ? 'Everything works without one. This build has no backend yet, so signing in opens a demo session that lives in this browser.'
+        : 'Everything works without one, but until you sign in your journeys live in this browser only. Sign in with Google and they follow you to any device.',
+    }]),
+    {
+      id: 'add',
+      target: 'add',
+      title: 'Log your first journey',
+      body: 'Two stations and a date. The train is optional — name one and the line follows its real stops. Find, Milestones and Trips turn up once there’s a journey to show.',
+      action: { label: 'Log a journey', run: () => { setPrefillFrom(null); setEntryOpen(true) } },
+    },
+  ], [signedIn, demo])
+
+  /*
    * The primary action, declared once and placed twice: bottom-right on a
    * phone (where the +/-/Fit stack used to be) and in the bottom-left stack on
    * anything wider, above Milestones and Rail pass.
@@ -270,6 +334,7 @@ export default function App() {
   const addJourney = (
     <button
       type="button"
+      data-tour="add"
       onClick={() => { setPrefillFrom(null); setEntryOpen(true) }}
       aria-label={mine === 0 ? 'Add your first journey' : 'Add a journey'}
       title={mine === 0 ? 'Add your first journey' : 'Add a journey'}
@@ -378,7 +443,7 @@ export default function App() {
           earned — once `mine > 0` — and it lives entirely on the icon below;
           see the comment on SignInButton's `nudge` prop for the mechanism. */}
       {!signedIn && auth.status !== 'loading' && (
-        <div className="pointer-events-auto absolute top-3 right-3 flex flex-col items-end gap-1.5">
+        <div data-tour="sign-in" className="pointer-events-auto absolute top-3 right-3 flex flex-col items-end gap-1.5">
           <SignInButton
             mode={auth.mode}
             onSignIn={auth.signIn}
@@ -412,6 +477,7 @@ export default function App() {
       <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col-reverse items-start gap-2">
         <section
           aria-label="Your totals"
+          data-tour="totals"
           className="flex flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex-row"
         >
           {/* The expand/collapse control on a phone, and — from sm up,
@@ -831,6 +897,8 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {tourOpen && <Tour steps={tourSteps} onEnd={endTour} />}
 
       {/* Last, so it paints over every sheet — a delete fails from inside one. */}
       <Toaster />
