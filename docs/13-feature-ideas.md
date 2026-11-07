@@ -3,7 +3,6 @@ tags: [project, rail-passport, feature-ideas, product-sense]
 date: 2026-10-05
 status: brainstorm — nothing here is decided
 ---
-
 # Platform — Feature Ideas: Admin Panel, Trips and Insights
 
 > **One-line purpose:** think three features through to the data model before any code exists — where the writes go, what breaks, what the UI asks of the user — so that whichever one gets built is built once.
@@ -123,15 +122,15 @@ users load.
 
 ## 1.3 What a "new train" form has to capture
 
-| Field | Why | Validation |
-| --- | --- | --- |
-| Train number | Identity; how users search | Unique, or explicitly marked as overriding upstream |
-| Name | Display | Non-empty |
-| Stops, in order | Route and reverse index | Every code exists in `stations.json` |
-| Arrival / departure per stop | `traintimes`, the scheduled-times offer | Monotonic once day offset is applied |
-| Day offset per stop | Overnight trains | Never decreases along the route |
-| Running days | Future "does this run on that date" | At least one day |
-| Source / note | Where the admin got it — a press release, IRCTC | Free text, required |
+| Field                        | Why                                              | Validation                                          |
+| ---------------------------- | ------------------------------------------------ | --------------------------------------------------- |
+| Train number                 | Identity; how users search                       | Unique, or explicitly marked as overriding upstream |
+| Name                         | Display                                          | Non-empty                                           |
+| Stops, in order              | Route and reverse index                          | Every code exists in `stations.json`              |
+| Arrival / departure per stop | `traintimes`, the scheduled-times offer        | Monotonic once day offset is applied                |
+| Day offset per stop          | Overnight trains                                 | Never decreases along the route                     |
+| Running days                 | Future "does this run on that date"              | At least one day                                    |
+| Source / note                | Where the admin got it — a press release, IRCTC | Free text, required                                 |
 
 Two checks worth building in from day one:
 
@@ -266,11 +265,11 @@ holiday, not the line on the map.
 
 Three shapes considered:
 
-| Shape | What it means | Verdict |
-| --- | --- | --- |
-| `Journey.tripId` (nullable) | A journey belongs to at most one trip | **Recommended** |
-| Join table `trip_journeys` | A journey can be in several trips | Overkill. "Northeast 2026" containing "Meghalaya" is a nested trip, not a shared journey — and nobody has asked for it |
-| Free-form tags | Trips are just labels | Loses everything a trip has that a tag does not: a note, a cover, a share card |
+| Shape                         | What it means                         | Verdict                                                                                                                 |
+| ----------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `Journey.tripId` (nullable) | A journey belongs to at most one trip | **Recommended**                                                                                                   |
+| Join table `trip_journeys`  | A journey can be in several trips     | Overkill. "Northeast 2026" containing "Meghalaya" is a nested trip, not a shared journey — and nobody has asked for it |
+| Free-form tags                | Trips are just labels                 | Loses everything a trip has that a tag does not: a note, a cover, a share card                                          |
 
 ```ts
 interface Trip {
@@ -330,7 +329,7 @@ travel.** The journeys become unsorted; the map does not change.
 - **The new edge case:** a journey that exists on both sides, where the server
   copy wins (as it does today) but only the local copy was in a trip. Rule
   worth adopting: *if the server copy has no trip and the local one does, the
-  server copy adopts it.* Adding to `scripts/check-merge.ts` before shipping —
+  server copy adopts it.* Adding to `scripts/check-merge.ts` befohire shipping —
   this is precisely the kind of merge bug that eats data silently.
 
 ## 2.3 How a journey gets into a trip
@@ -411,15 +410,15 @@ opens the journeys sheet on that route and flies to it.
 
 ## 2.6 Edge cases
 
-| Case | Behaviour |
-| --- | --- |
-| Rename a trip | Just a name change; journeys keep their `tripId` |
-| Delete a trip | Journeys stay, become unsorted. Confirm, and say so |
-| Move a journey to another trip | Change `tripId`; one journey, one trip |
-| Two trips overlap in dates | Allowed. Dates are derived, not a constraint |
-| Trip's last journey deleted | Trip becomes empty — delete it too, consistent with "no empty trips" |
-| Anonymous user creates trips | Same as journeys: local, then merged on sign-in |
-| Shared Rail pass of a trip | Shows the trip's name — the user's words. Worth a preview before sharing |
+| Case                           | Behaviour                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| Rename a trip                  | Just a name change; journeys keep their `tripId`                        |
+| Delete a trip                  | Journeys stay, become unsorted. Confirm, and say so                       |
+| Move a journey to another trip | Change `tripId`; one journey, one trip                                  |
+| Two trips overlap in dates     | Allowed. Dates are derived, not a constraint                              |
+| Trip's last journey deleted    | Trip becomes empty — delete it too, consistent with "no empty trips"     |
+| Anonymous user creates trips   | Same as journeys: local, then merged on sign-in                           |
+| Shared Rail pass of a trip     | Shows the trip's name — the user's words. Worth a preview before sharing |
 
 ## 2.7 Recommendation
 
@@ -498,39 +497,39 @@ About twenty candidates, more than should ship. §3.6 proposes a first cut.
 
 ### Stations — the names you collect
 
-| Insight | Example | From | Shows when |
-| --- | --- | --- | --- |
-| **Home station** | *Howrah is home: 14 of 23 journeys start or end there.* | Endpoint frequency | ≥ 5 journeys, top station on ≥ 30% of them |
-| **Passed, never stopped** | *You've passed Malda Town 6 times and never got off.* | Route stops minus endpoints | A station passed ≥ 3 times, never an endpoint |
-| **Most-passed station** | *Kharagpur Jn: on 9 of your journeys.* | Route stops | ≥ 5 journeys |
-| **Compass extremes** | *Furthest north: Jammu Tawi. Furthest south: Kanniyakumari.* Four pins on the map | Station coordinates | 1 journey. Always true, and it changes as you travel |
-| **Junctions** | *You've rolled through 41 junctions.* | Name ends in `Jn` (395 in the data) | ≥ 10 junctions |
-| **"Road" stations** | *You've got off at 2 "Road" stations, Indian Railways for "the town is somewhere else".* | Name contains `Road` (308) | ≥ 1 endpoint. Playful tier |
-| **Longest and shortest name** | *Longest name you've stood at: Chhatrapati Shivaji Maharaj Terminus.* | Endpoint names | ≥ 5 endpoints. Playful tier |
-| **Zones** | *8 of 17 zones.* | `zone` field | **Blocked:** 51% of stations have no zone. Needs a pipeline fix first (§3.6) |
+| Insight                             | Example                                                                                    | From                                  | Shows when                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------- | ----------------------------------------------------------------------------------- |
+| **Home station**              | *Howrah is home: 14 of 23 journeys start or end there.*                                  | Endpoint frequency                    | ≥ 5 journeys, top station on ≥ 30% of them                                        |
+| **Passed, never stopped**     | *You've passed Malda Town 6 times and never got off.*                                    | Route stops minus endpoints           | A station passed ≥ 3 times, never an endpoint                                      |
+| **Most-passed station**       | *Kharagpur Jn: on 9 of your journeys.*                                                   | Route stops                           | ≥ 5 journeys                                                                       |
+| **Compass extremes**          | *Furthest north: Jammu Tawi. Furthest south: Kanniyakumari.* Four pins on the map        | Station coordinates                   | 1 journey. Always true, and it changes as you travel                                |
+| **Junctions**                 | *You've rolled through 41 junctions.*                                                    | Name ends in `Jn` (395 in the data) | ≥ 10 junctions                                                                     |
+| **"Road" stations**           | *You've got off at 2 "Road" stations, Indian Railways for "the town is somewhere else".* | Name contains `Road` (308)          | ≥ 1 endpoint. Playful tier                                                         |
+| **Longest and shortest name** | *Longest name you've stood at: Chhatrapati Shivaji Maharaj Terminus.*                    | Endpoint names                        | ≥ 5 endpoints. Playful tier                                                        |
+| **Zones**                     | *8 of 17 zones.*                                                                         | `zone` field                        | **Blocked:** 51% of stations have no zone. Needs a pipeline fix first (§3.6) |
 
 ### Time — gaps and rhythm
 
-| Insight | Example | From | Shows when |
-| --- | --- | --- | --- |
-| **Longest gap** | *Your longest time off the rails: 427 days, March 2024 to May 2025.* | Sorted `travelledOn` | ≥ 3 journeys |
-| **Typical gap** | *You take a train about every 5 weeks.* | Median gap | ≥ 6 journeys |
-| **How long you stay** | *You usually stay 9 days in Vellore.* | A→B paired with the next B→A | ≥ 2 round trips to one place |
-| **Seasons** | *December is your month: 7 of 23 journeys.* | Month of `travelledOn` | ≥ 12 journeys over ≥ 12 months, top month ≥ 2× its fair share |
-| **Day of the week** | *You leave on Fridays.* | Weekday of `travelledOn` | ≥ 10 journeys, top day ≥ 2× its fair share |
-| **Nights on a train** | *14 nights slept on a train.* | `arrivalDayOffset ≥ 1` | ≥ 1 overnight journey with an arrival logged |
-| **Hours aboard** | *61 hours on trains, from the 12 journeys you logged times for.* | Departure + arrival + day offset | ≥ 3 journeys with both times |
-| **Night owl** | *9 of your 12 departures were after 8 pm.* | `departureTime` | ≥ 6 journeys with times, ≥ 2/3 in one band |
+| Insight                     | Example                                                                | From                             | Shows when                                                        |
+| --------------------------- | ---------------------------------------------------------------------- | -------------------------------- | ----------------------------------------------------------------- |
+| **Longest gap**       | *Your longest time off the rails: 427 days, March 2024 to May 2025.* | Sorted `travelledOn`           | ≥ 3 journeys                                                     |
+| **Typical gap**       | *You take a train about every 5 weeks.*                              | Median gap                       | ≥ 6 journeys                                                     |
+| **How long you stay** | *You usually stay 9 days in Vellore.*                                | A→B paired with the next B→A   | ≥ 2 round trips to one place                                     |
+| **Seasons**           | *December is your month: 7 of 23 journeys.*                          | Month of `travelledOn`         | ≥ 12 journeys over ≥ 12 months, top month ≥ 2× its fair share |
+| **Day of the week**   | *You leave on Fridays.*                                              | Weekday of `travelledOn`       | ≥ 10 journeys, top day ≥ 2× its fair share                     |
+| **Nights on a train** | *14 nights slept on a train.*                                        | `arrivalDayOffset ≥ 1`        | ≥ 1 overnight journey with an arrival logged                     |
+| **Hours aboard**      | *61 hours on trains, from the 12 journeys you logged times for.*     | Departure + arrival + day offset | ≥ 3 journeys with both times                                     |
+| **Night owl**         | *9 of your 12 departures were after 8 pm.*                           | `departureTime`                | ≥ 6 journeys with times, ≥ 2/3 in one band                      |
 
 ### Routes and trains — habits
 
-| Insight | Example | From | Shows when |
-| --- | --- | --- | --- |
-| **Your corridor** | *Howrah ⇄ Katpadi, 6 times.* (Both directions count as one.) | Unordered endpoint pairs | A pair travelled ≥ 3 times |
-| **Favourite train** | *The 12839 Howrah–Chennai Mail, 5 times.* | `trainNumber` + `maps/trainnames.json` | A train taken ≥ 3 times |
-| **New ground** | *3,605 km travelled, 2,410 of it on track you'd never been on before.* | Distinct graph edges across routes vs total km | ≥ 2 journeys sharing any track |
-| **Round trips** | *Most of your journeys come back: 9 round trips.* | Paired A→B / B→A | ≥ 2 round trips |
-| **Speed** | *Your trains average 54 km/h, door to door.* | km ÷ hours, where both known | ≥ 3 timed journeys. Maybe: true, but not obviously interesting |
+| Insight                   | Example                                                                  | From                                           | Shows when                                                      |
+| ------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- | --------------------------------------------------------------- |
+| **Your corridor**   | *Howrah ⇄ Katpadi, 6 times.* (Both directions count as one.)          | Unordered endpoint pairs                       | A pair travelled ≥ 3 times                                     |
+| **Favourite train** | *The 12839 Howrah–Chennai Mail, 5 times.*                             | `trainNumber` + `maps/trainnames.json`     | A train taken ≥ 3 times                                        |
+| **New ground**      | *3,605 km travelled, 2,410 of it on track you'd never been on before.* | Distinct graph edges across routes vs total km | ≥ 2 journeys sharing any track                                 |
+| **Round trips**     | *Most of your journeys come back: 9 round trips.*                      | Paired A→B / B→A                             | ≥ 2 round trips                                                |
+| **Speed**           | *Your trains average 54 km/h, door to door.*                           | km ÷ hours, where both known                  | ≥ 3 timed journeys. Maybe: true, but not obviously interesting |
 
 **New ground** is the strongest idea in the list, and it is particular to this
 app. Other trackers can count kilometres. Only one that routes over the real
