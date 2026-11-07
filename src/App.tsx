@@ -11,12 +11,11 @@ import { UserMenu } from '@/features/auth/UserMenu.tsx'
 import { JourneysSheet } from '@/components/JourneysSheet.tsx'
 import { Toaster } from '@/components/Toaster.tsx'
 import { useTimeOfDayTheme } from '@/features/theme/useTheme.ts'
-import { formatKm } from '@/lib/distance.ts'
 import { evaluateMilestones } from '@/features/stats/milestones.ts'
-import { Milestones } from '@/features/stats/Milestones.tsx'
-import { RailPass } from '@/features/railpass/RailPass.tsx'
+import { LedgerSheet } from '@/features/stats/LedgerSheet.tsx'
 import { StatNumber } from '@/features/stats/StatNumber.tsx'
-import { createTally, type Totals } from '@/features/stats/tally.ts'
+import { createTally } from '@/features/stats/tally.ts'
+import { TILES, kmFigure } from '@/features/stats/tiles.ts'
 import { TripsSheet, type TripTarget } from '@/features/trips/TripsSheet.tsx'
 import { TripPanel } from '@/features/trips/TripPanel.tsx'
 import { tripOptions } from '@/features/trips/TripField.tsx'
@@ -35,19 +34,6 @@ interface Stats {
       not a missing one. */
   uncounted: number
 }
-
-/* The figures as the tiles print them. Module-level so StatNumber gets the
-   same function every render; it calls them once per frame while counting. */
-const kmFigure = (n: number) => formatKm(n).replace(' km', '')
-const countFigure = (n: number) => Math.round(n).toLocaleString('en-IN')
-
-/** The four tiles, in order: label, which total, how to print it. */
-const TILES = [
-  ['Kilometres', 'km', kmFigure],
-  ['Stations', 'stations', countFigure],
-  ['States', 'states', countFigure],
-  ['Longest', 'longestKm', kmFigure],
-] as const satisfies ReadonlyArray<readonly [string, keyof Totals, (n: number) => string]>
 
 export default function App() {
   const [stats, setStats] = useState<Stats>({ km: 0, longestKm: 0, stations: 0, states: 0, uncounted: 0 })
@@ -96,8 +82,17 @@ export default function App() {
    */
   const [prefillFrom, setPrefillFrom] = useState<StationHit | null>(null)
   const [findOpen, setFindOpen] = useState(false)
-  const [milestonesOpen, setMilestonesOpen] = useState(false)
-  const [railPassOpen, setRailPassOpen] = useState(false)
+  /**
+   * The ledger: totals, milestones and the rail pass, behind one control —
+   * docs/features/ledger/prd.md. The ref is the control itself, so closing the
+   * sheet can hand focus back to what opened it.
+   */
+  const [ledgerOpen, setLedgerOpen] = useState(false)
+  const ledgerButton = useRef<HTMLButtonElement>(null)
+  const closeLedger = useCallback(() => {
+    setLedgerOpen(false)
+    ledgerButton.current?.focus()
+  }, [])
 
   /*
    * Trips — docs/features/trips/prd.md. The list is a sheet; a trip, once
@@ -219,13 +214,13 @@ export default function App() {
       if (el instanceof HTMLElement &&
           (el.isContentEditable || el instanceof HTMLInputElement ||
            el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement)) return
-      if (entryOpen || milestonesOpen || railPassOpen || routeTarget || findOpen || tripsOpen) return
+      if (entryOpen || ledgerOpen || routeTarget || findOpen || tripsOpen) return
       e.preventDefault()
       setFindOpen(true)
     }
     window.addEventListener('keydown', onKey)
     return () => { window.removeEventListener('keydown', onKey) }
-  }, [mine, entryOpen, milestonesOpen, railPassOpen, routeTarget, findOpen, tripsOpen])
+  }, [mine, entryOpen, ledgerOpen, routeTarget, findOpen, tripsOpen])
   /** Every journey between the same two stations, either direction — a
       round trip traces the same line on the map, so it reads as one route,
       not two. */
@@ -236,11 +231,6 @@ export default function App() {
       (j.fromCode === routeTarget.toCode && j.toCode === routeTarget.fromCode),
     )
   }, [routeTarget, journeys])
-  // Card view at sm and up always shows all four — this only governs the
-  // phone list, and starts collapsed so the totals don't compete with the
-  // sign-in card and the log-journey/milestones buttons for the same strip
-  // of screen on first open.
-  const [statsExpanded, setStatsExpanded] = useState(false)
   const milestones = useMemo(
     () => evaluateMilestones({ km: stats.km, stations: stats.stations, states: stats.states, journeys }),
     [stats.km, stats.stations, stats.states, journeys],
@@ -394,130 +384,94 @@ export default function App() {
         </div>
       )}
 
-      {/* `bottom-3` at every width, level with the + button on a phone: the
-          collapsed row is just "Stats ▸" now, not "Kilometres — 1000", and a
-          three-word pill on the left with a 56px square on the right leaves
-          real clearance between them even at 320px. (It used to sit on
-          `bottom-16` on phones specifically to clear that button, back when
-          the collapsed label carried a value and was wide enough to reach
-          under it — no longer true once "Stats" replaced the value.)
+      {/* `bottom-3` at every width, level with the + button on a phone. The
+          ledger control is one 44px row there — the kilometres and an arrow —
+          and the + is a 40px square in the opposite corner, so the two clear
+          each other even at 320px.
 
-          Stacked bottom-up in one flex column, not three independently
-          positioned elements at fixed pixel offsets: the stats list below is
-          one row on a wide screen but up to six on a phone once expanded, and
-          a fixed offset tuned for the short version is exactly what would let
-          the tall version paint over these buttons. First DOM child sits
-          visually lowest with `flex-col-reverse`, so stats stays first here
-          and everything else stacks above however tall it turns out to be. */}
+          Stacked bottom-up in one flex column, not independently positioned
+          elements at fixed pixel offsets: the sync notice and the Trips row
+          above the ledger come and go, and an offset tuned for one
+          combination is exactly what would let another paint over them.
+          First DOM child sits visually lowest with `flex-col-reverse`, so the
+          ledger stays first here and everything else stacks above it. */}
       <div className="pointer-events-none absolute bottom-3 left-3 flex flex-col-reverse items-start gap-2">
-        <section
-          aria-label="Your totals"
-          className="flex flex-col overflow-hidden rounded-sm border border-line bg-surface sm:flex-row"
-        >
-          {/* The expand/collapse control on a phone, and — from sm up,
-              where the card view never collapses — the Kilometres column,
-              which is why it keeps its own markup rather than joining the
-              array below: the two screen sizes show genuinely different
-              content in this cell, not just a relabelled one. A `<button>`
-              rather than a `<div>` so the whole row is one thumb-sized tap
-              target on the phone, not a tiny chevron; inert at sm and up.
+        {/* The ledger control — what were the Stats toggle, the Milestones
+            button and the Rail pass button, as one (docs/features/ledger/).
+            On a phone it is the kilometres and an arrow: the one figure worth
+            a glance, counting up with the draw-in, and the way in to the rest.
+            From sm up it is the four tiles, always showing, and the whole
+            strip is the button.
 
-              "Stats" replaces what used to be "Kilometres — <value>" here:
-              with Kilometres now just one of four rows the button reveals
-              rather than the row that stands in for all of them, showing its
-              own value on the closed button was a leftover of the old
-              layout, not something worth keeping on its own. */}
+            Hidden at zero journeys, as Milestones and Rail pass were: behind it
+            would be every milestone locked and a pass reading 0 km, which
+            looks broken rather than empty. The map at zero is honestly empty,
+            and the + is the only thing on it asking for anything. */}
+        {mine > 0 && (
           <button
+            ref={ledgerButton}
             type="button"
-            onClick={() => { setStatsExpanded((e) => !e) }}
-            aria-expanded={statsExpanded}
-            className="pointer-events-auto flex items-baseline gap-1.5 border-b border-line px-3 py-2 text-left last:border-b-0 sm:pointer-events-none sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-b-0 sm:border-r sm:py-3 sm:last:border-r-0"
+            onClick={() => { setLedgerOpen(true) }}
+            aria-haspopup="dialog"
+            className="group pointer-events-auto flex min-h-11 items-stretch overflow-hidden rounded-sm border border-line bg-surface text-left transition-colors duration-150 hover:bg-surface-2"
           >
-            <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:hidden">
-              Stats
+            <span className="sr-only">Open the ledger: </span>
+            {/* Phone. --ink rather than --cream: at 13px cream is mud (trap 3). */}
+            <span className="flex items-center gap-1.5 px-3 sm:hidden">
+              <StatNumber
+                tally={tally}
+                field="km"
+                value={stats.km}
+                format={kmFigure}
+                className="tabular text-sm leading-none text-ink"
+              />
+              <span className="text-label font-semibold tracking-label text-ink-faint uppercase transition-colors duration-150 group-hover:text-accent">
+                km
+              </span>
+              {/* The figure beside it leaves these out, so it says so where
+                  the figure is — not one tap away. */}
+              {stats.uncounted > 0 && (
+                <>
+                  <span aria-hidden="true" className="text-ink-faint">·</span>
+                  <span className="tabular text-sm leading-none text-oxide">{stats.uncounted}</span>
+                  <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
+                    not drawn
+                  </span>
+                </>
+              )}
+              <span aria-hidden="true" className="ml-1.5 text-ink-faint">▸</span>
             </span>
-            <span className="hidden text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5 sm:inline">
-              Kilometres
-            </span>
-            <StatNumber
-              tally={tally}
-              field="km"
-              value={stats.km}
-              format={kmFigure}
-              className="hidden tabular text-sm leading-none text-cream sm:inline sm:text-xl"
-            />
-            <span aria-hidden="true" className="ml-auto text-ink-faint sm:hidden">
-              {statsExpanded ? '▾' : '▸'}
+            {/* sm and up: the four tiles, then the two exceptions. */}
+            {TILES.map(([label, field, format]) => (
+              <span key={label} className="hidden flex-col-reverse items-start border-r border-line px-3 py-3 sm:flex">
+                <span className="mt-1.5 text-label font-semibold tracking-label text-ink-faint uppercase transition-colors duration-150 group-hover:text-accent">
+                  {label}
+                </span>
+                <StatNumber
+                  tally={tally}
+                  field={field}
+                  value={stats[field]}
+                  format={format}
+                  className="tabular text-xl leading-none text-cream"
+                />
+              </span>
+            ))}
+            {stats.uncounted > 0 && (
+              <span className="hidden flex-col-reverse items-center justify-center border-r border-line bg-surface-2 px-3 py-3 sm:flex">
+                <span className="mt-1 text-label font-semibold tracking-label text-ink-faint uppercase">Not drawn</span>
+                <span className="tabular text-sm leading-none text-oxide">{stats.uncounted}</span>
+              </span>
+            )}
+            {demo && (
+              <span className="hidden items-center justify-center border-r border-line bg-surface-2 px-3 sm:flex">
+                <span className="text-label font-semibold tracking-label text-ink-faint uppercase">Demo</span>
+              </span>
+            )}
+            <span aria-hidden="true" className="hidden items-center px-3 text-ink-faint transition-colors duration-150 group-hover:text-accent sm:flex">
+              ▸
             </span>
           </button>
-          {/* Mobile expanded list: all four, Kilometres included — the
-              button above no longer shows its value when collapsed, so it has
-              to appear somewhere once expanded. sm:hidden unconditionally:
-              this list is never the desktop presentation, the row below is. */}
-          {TILES.map(([label, field, format]) => (
-            <div
-              key={label}
-              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line px-3 py-2 last:border-b-0 sm:hidden`}
-            >
-              <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
-                {label}
-              </span>
-              <span className="text-ink-faint">–</span>
-              <StatNumber
-                tally={tally}
-                field={field}
-                value={stats[field]}
-                format={format}
-                className="tabular text-sm leading-none text-cream"
-              />
-            </div>
-          ))}
-          {/* Desktop row: Kilometres already has its own column via the
-              button, so only the other three repeat here — always visible,
-              never gated on statsExpanded, which does not exist as a concept
-              at this width. Unchanged from before this edit. */}
-          {TILES.slice(1).map(([label, field, format]) => (
-            <div
-              key={label}
-              className="hidden items-baseline gap-1.5 border-line px-3 py-2 sm:flex sm:flex-col-reverse sm:items-start sm:gap-0 sm:border-r sm:py-3 sm:last:border-r-0"
-            >
-              <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1.5">
-                {label}
-              </span>
-              <StatNumber
-                tally={tally}
-                field={field}
-                value={stats[field]}
-                format={format}
-                className="tabular text-sm leading-none text-cream sm:text-xl"
-              />
-            </div>
-          ))}
-          {stats.uncounted > 0 && (
-            <div
-              className={`${statsExpanded ? 'flex' : 'hidden'} items-baseline gap-1.5 border-b border-line bg-surface-2 px-3 py-2 last:border-b-0 sm:flex sm:flex-col-reverse sm:items-center sm:gap-0 sm:border-b-0 sm:border-l sm:py-3`}
-              title={
-                `${stats.uncounted} ${stats.uncounted === 1 ? 'journey is' : 'journeys are'} not ` +
-                'included in these totals: the rail graph has no route for them, so their ' +
-                'distance and stops are unknown rather than zero. Their end stations are ' +
-                'drawn hollow on the map.'
-              }
-            >
-              <span className="text-label font-semibold tracking-label text-ink-faint uppercase sm:mt-1">
-                Not drawn
-              </span>
-              <span className="text-ink-faint sm:hidden">–</span>
-              <span className="tabular text-sm leading-none text-oxide">{stats.uncounted}</span>
-            </div>
-          )}
-          {demo && (
-            <div className={`${statsExpanded ? 'block' : 'hidden'} border-b border-line bg-surface-2 px-3 py-2 last:border-b-0 sm:flex sm:items-center sm:justify-center sm:border-b-0 sm:border-l sm:py-3`}>
-              <span className="text-label font-semibold tracking-label text-ink-faint uppercase">
-                Demo
-              </span>
-            </div>
-          )}
-        </section>
+        )}
 
         {/* Sync state, directly above the totals it qualifies. Silent until
             something has not reached the account — then it says what, that
@@ -559,12 +513,11 @@ export default function App() {
         )}
 
         {/* Ordering here is bottom-up (flex-col-reverse, first child lowest):
-            totals, then milestones and the pass, then — on sm and up only —
-            the primary action. "Add your journey" sits ABOVE the two
-            secondary buttons rather than under them, because it is the only
-            thing on this screen a new visitor should feel any pull toward.
-            On a phone it is not in this stack at all; it is in the
-            bottom-right corner.
+            the ledger, then Trips, then — on sm and up only — the primary
+            action. "Add your journey" sits ABOVE the secondary buttons rather
+            than under them, because it is the only thing on this screen a new
+            visitor should feel any pull toward. On a phone it is not in this
+            stack at all; it is in the bottom-right corner.
 
             There used to be a fourth thing here — a "save your journeys"
             panel with its own full-width sign-in button, shown once
@@ -575,39 +528,18 @@ export default function App() {
             tooltip that opens itself briefly and closes on its own; see the
             `nudge` prop on SignInButton.
 
-            What gates these is `mine`, not `signedIn`. An unsigned visitor can
-            log journeys now, and the moment they have one the milestones and
-            the pass are about their travel, so they appear. At zero they stay
-            hidden: there is nothing to open — milestones would show every
-            milestone locked, and the pass would hand out a shareable card
-            reading 0 km / 0 stations / 0 states, which looks broken rather
-            than empty. */}
-        {/* Trips joins this row, and appears with a trip even at zero
-            journeys — a trip made before setting off is something to come
-            back to. It wraps to its own line before it can reach under the
-            corner buttons on a narrow phone. The dot is a suggestion waiting
-            ("these journeys look like one trip"); it goes when answered. */}
+            Milestones and Rail pass used to sit in this row too. They are in
+            the ledger now: the milestones are thresholds on the same totals,
+            and the pass is a picture of them, so it was one topic spread over
+            three buttons. */}
+        {/* Trips appears with a trip even at zero journeys — a trip made
+            before setting off is something to come back to. The row keeps its
+            wrap so a future second button drops to its own line before it can
+            reach under the corner buttons on a narrow phone. The dot is a
+            suggestion waiting ("these journeys look like one trip"); it goes
+            when answered. */}
         {(mine > 0 || trips.length > 0) && (
           <div className="pointer-events-auto flex max-w-[calc(100vw-5.5rem)] flex-wrap gap-2 sm:max-w-none">
-            {mine > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => { setMilestonesOpen(true) }}
-                  className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent"
-                >
-                  Milestones
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setRailPassOpen(true) }}
-                  disabled={!mapData}
-                  className="rounded-sm border border-line bg-surface px-3 py-2 text-label font-semibold tracking-label text-ink-soft uppercase hover:bg-surface-2 hover:text-accent disabled:opacity-40"
-                >
-                  Rail pass
-                </button>
-              </>
-            )}
             <button
               type="button"
               onClick={() => { setTripTarget(null); setTripsOpen(true) }}
@@ -653,28 +585,16 @@ export default function App() {
         {addJourney}
       </div>
 
-      {milestonesOpen && (
-        <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-md sm:rounded-lg">
-            <h2 className="mb-4 text-label font-semibold tracking-label text-ink-faint uppercase">
-              Milestones
-            </h2>
-            <Milestones milestones={milestones} onClose={() => { setMilestonesOpen(false) }} />
-          </div>
-        </div>
-      )}
-
-      {railPassOpen && mapData && (
-        <div className="pointer-events-auto absolute inset-0 z-20 flex items-end justify-center bg-ground/60 p-0 backdrop-blur-[2px] sm:items-center sm:p-4">
-          <div className="max-h-[88dvh] w-full overflow-auto rounded-t-lg border border-line bg-surface p-5 sm:max-w-xl sm:rounded-lg">
-            <RailPass
-              data={mapData}
-              journeys={journeys}
-              stats={stats}
-              onClose={() => { setRailPassOpen(false) }}
-            />
-          </div>
-        </div>
+      {ledgerOpen && (
+        <LedgerSheet
+          tally={tally}
+          stats={stats}
+          milestones={milestones}
+          data={mapData}
+          journeys={journeys}
+          demo={demo}
+          onClose={closeLedger}
+        />
       )}
 
       {tripTarget && (
@@ -685,7 +605,7 @@ export default function App() {
           allJourneys={journeys}
           trips={trips}
           data={mapData}
-          covered={entryOpen || routeTarget !== null || findOpen || tripsOpen || milestonesOpen || railPassOpen}
+          covered={entryOpen || routeTarget !== null || findOpen || tripsOpen || ledgerOpen}
           onClose={() => { setTripTarget(null) }}
           onOpenJourney={(journeyId) => {
             const opened = journeys.find((j) => j.id === journeyId)
