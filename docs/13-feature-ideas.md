@@ -329,7 +329,7 @@ travel.** The journeys become unsorted; the map does not change.
 - **The new edge case:** a journey that exists on both sides, where the server
   copy wins (as it does today) but only the local copy was in a trip. Rule
   worth adopting: *if the server copy has no trip and the local one does, the
-  server copy adopts it.* Adding to `scripts/check-merge.ts` befohire shipping —
+  server copy adopts it.* Adding to `scripts/check-merge.ts` before shipping —
   this is precisely the kind of merge bug that eats data silently.
 
 ## 2.3 How a journey gets into a trip
