@@ -144,6 +144,10 @@ export default defineConfig(({ command }) => {
       // Read by src/lib/offline.ts to tell this build's shard cache from the
       // ones before it.
       __SHARD_CACHE__: JSON.stringify(SHARD_CACHE),
+      // The nameplate's version, from package.json — the same number the
+      // caches are versioned under, so the two cannot disagree again (the
+      // badge once said 0.2 while the package said 0.1.0).
+      __APP_VERSION__: JSON.stringify(pkg.version),
     },
     resolve: {
       alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) },

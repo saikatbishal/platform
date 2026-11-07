@@ -24,6 +24,11 @@ import { byTravelDate, samePlaceFrom, suggestTrips, unsortedJourneys } from '@/f
 import { addDismissed, readDismissed } from '@/features/trips/tripStorage.ts'
 import { showToast } from '@/components/toast.ts'
 
+/** "0.3.0" from package.json, shown as "v0.3": the patch number is for
+    caches and deploys, not for the person looking at the nameplate. */
+declare const __APP_VERSION__: string
+const APP_VERSION = __APP_VERSION__.split('.').slice(0, 2).join('.')
+
 interface Stats {
   km: number
   longestKm: number
@@ -358,7 +363,7 @@ export default function App() {
           Platform
         </span>
         <span className="rounded-r-[1px] border-l border-line px-2.5 py-1.5 text-label font-semibold tracking-label text-ink-faint uppercase">
-          v0.2
+          v{APP_VERSION}
         </span>
       </header>
 
