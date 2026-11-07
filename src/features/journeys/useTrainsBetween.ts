@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { retryWhenOnline } from '@/lib/online.ts'
 
 /**
  * Which trains run from A to B.
@@ -34,12 +35,20 @@ export interface TrainsBetween {
   between: (from: string, to: string) => TrainOption[]
   /** True while either shard or the name file is still on its way. */
   loading: boolean
+  /**
+   * True when either station's shard could not be fetched for want of a
+   * network — offline, and not yet cached. Distinct from an empty answer:
+   * "no through train" would be a false statement about the timetable when
+   * the truth is that the timetable is not on this device yet.
+   */
+  unreachable: (from: string, to: string) => boolean
 }
 
 export function useTrainsBetween(): TrainsBetween {
   const [shards, setShards] = useState<ReadonlyMap<string, Shard>>(new Map())
   const [names, setNames] = useState<Readonly<Record<string, string>> | null>(null)
   const [pending, setPending] = useState(0)
+  const [unreached, setUnreached] = useState<ReadonlySet<string>>(new Set())
   const asked = useRef(new Set<string>())
 
   const request = useCallback((code: string) => {
@@ -54,6 +63,12 @@ export function useTrainsBetween(): TrainsBetween {
         if (!res.ok) return
         const shard = (await res.json()) as Shard
         setShards((prev) => new Map(prev).set(key, shard))
+        setUnreached((prev) => {
+          if (!prev.has(key)) return prev
+          const next = new Set(prev)
+          next.delete(key)
+          return next
+        })
       }])
     }
     // Names are one flat file for every train — a route can offer forty
@@ -69,11 +84,18 @@ export function useTrainsBetween(): TrainsBetween {
       }])
     }
 
-    for (const [, run] of wanted) {
+    for (const [k, run] of wanted) {
       setPending((n) => n + 1)
       run()
         .catch((e: unknown) => {
           if (import.meta.env.DEV) console.warn('[journeys] train lookup failed', e)
+          // A failed fetch here is a missing network, not missing data (a
+          // 404 returns early above without throwing). Forget it, say so,
+          // and ask again on reconnect — `request(code)` re-asks for both
+          // this shard and the names if either is still missing.
+          asked.current.delete(k)
+          if (k !== '#names') setUnreached((prev) => new Set(prev).add(k))
+          retryWhenOnline(() => { request(code) })
         })
         .finally(() => { setPending((n) => n - 1) })
     }
@@ -99,5 +121,10 @@ export function useTrainsBetween(): TrainsBetween {
     return out
   }, [shards, names])
 
-  return { request, between, loading: pending > 0 }
+  const unreachable = useCallback(
+    (from: string, to: string) => unreached.has(shardKey(from)) || unreached.has(shardKey(to)),
+    [unreached],
+  )
+
+  return { request, between, loading: pending > 0, unreachable }
 }
