@@ -22,6 +22,12 @@ components, hooks, and queries, and exports only what other features need.
   shell and up-front data are precached per file by content hash; timetable
   shards are kept as fetched, in a cache named for the app version plus a
   hash of the shard data.
+  
+- **onboarding/** — the first-visit tour: coach marks over a spotlight, one
+  per control a new visitor can actually see. Shown once per device
+  (`platform.tour.v1` in localStorage); `?tour` in the URL forces it. No
+  library — one SVG path with an `evenodd` hole, so the spotlit control stays
+  tappable through it.
 
 Cross-feature code goes in `src/lib` (pure functions) or `src/components`
 (presentational, no feature knowledge).
