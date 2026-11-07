@@ -17,6 +17,15 @@ function toPgRow(journey: Journey) {
     departure_time: journey.departureTime,
     arrival_time: journey.arrivalTime,
     arrival_day_offset: journey.arrivalDayOffset,
+    /*
+     * Only when there is one. A journey in no trip sends no `trip_id` at all,
+     * so that until supabase/schema.sql's trips migration has been run, the
+     * saves that do not involve trips keep working exactly as before — a
+     * column the server does not have would otherwise fail every save. One
+     * that is in a trip fails until then, and stays pending, which loses
+     * nothing.
+     */
+    ...(journey.tripId !== null ? { trip_id: journey.tripId } : {}),
   }
 }
 
@@ -35,6 +44,8 @@ function fromPgRow(row: Record<string, unknown>): Journey | null {
     departureTime: (row.departure_time as string) || null,
     arrivalTime: (row.arrival_time as string) || null,
     arrivalDayOffset: (row.arrival_day_offset as number) ?? 0,
+    // Undefined before the migration, null after it for a journey in no trip.
+    tripId: (row.trip_id as string | null | undefined) ?? null,
   }
   return isJourney(j) ? j : null
 }
@@ -52,7 +63,7 @@ function fromPgRow(row: Record<string, unknown>): Journey | null {
  */
 export type SyncResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
-const fail = (error: unknown): { ok: false; error: string } => ({
+export const fail = (error: unknown): { ok: false; error: string } => ({
   ok: false,
   error:
     error && typeof error === 'object' && 'message' in error
@@ -60,7 +71,7 @@ const fail = (error: unknown): { ok: false; error: string } => ({
       : String(error),
 })
 
-const NOT_CONFIGURED = { ok: false, error: 'Supabase is not configured' } as const
+export const NOT_CONFIGURED = { ok: false, error: 'Supabase is not configured' } as const
 
 /**
  * Read journeys for a signed-in user from Supabase.
@@ -128,6 +139,36 @@ export async function addToSupabase(userId: string, journey: Journey): Promise<S
       .upsert({ ...toPgRow(journey), user_id: userId }, { onConflict: 'id', ignoreDuplicates: true })
     if (error) return fail(error)
     return { ok: true, value: journey }
+  } catch (e) {
+    return fail(e)
+  }
+}
+
+/**
+ * Put saved journeys into a trip, or take them out of one (`null`).
+ *
+ * Its own call, not a re-send through `addToSupabase`: that is an upsert that
+ * ignores rows already there, which is right for a retried insert and exactly
+ * wrong here — the server would keep the old `trip_id` and report success.
+ * An update that matches no row (the journey was deleted elsewhere) also
+ * succeeds; there is nothing left to be in a trip.
+ */
+export async function setTripOnSupabase(
+  userId: string,
+  journeyIds: readonly string[],
+  tripId: string | null,
+): Promise<SyncResult<null>> {
+  if (journeyIds.length === 0) return { ok: true, value: null }
+  try {
+    const supabase = await getSupabase()
+    if (!supabase) return NOT_CONFIGURED
+    const { error } = await supabase
+      .from('journeys')
+      .update({ trip_id: tripId })
+      .in('id', [...journeyIds])
+      .eq('user_id', userId)
+    if (error) return fail(error)
+    return { ok: true, value: null }
   } catch (e) {
     return fail(e)
   }

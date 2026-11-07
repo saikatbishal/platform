@@ -3,6 +3,7 @@ import { useJourneyRoutes } from '@/features/map/useJourneyRoutes.ts'
 import { JourneyCard } from './JourneyCard.tsx'
 import { useScrimDismiss } from './useScrimDismiss.ts'
 import type { MapData } from '@/features/map/useMapData.ts'
+import type { TripOption } from '@/features/trips/TripField.tsx'
 import type { Journey } from '@/types/index.ts'
 
 interface Props {
@@ -19,6 +20,13 @@ interface Props {
   onRemove: (journeyId: string) => void
   /** True while `journeys` is the sample set, not anyone's real data. */
   readOnly?: boolean
+  /** "Part of a trip" on each card. */
+  trips?: {
+    options: readonly TripOption[]
+    onSet: (journeyId: string, tripId: string | null) => void
+    onNew: (journeyId: string, name: string) => void
+    onOpen: (tripId: string) => void
+  }
 }
 
 /**
@@ -32,7 +40,7 @@ interface Props {
  * `RailPass` already makes. A shortest-path label instead of an exact
  * one costs nothing a reader of this list would notice.
  */
-export function JourneysSheet({ journeys, initialJourneyId, data, onClose, onShowOnMap, onRemove, readOnly = false }: Props) {
+export function JourneysSheet({ journeys, initialJourneyId, data, onClose, onShowOnMap, onRemove, readOnly = false, trips }: Props) {
   const sorted = useMemo(
     () => [...journeys].sort((a, b) => b.travelledOn.localeCompare(a.travelledOn)),
     [journeys],
@@ -161,6 +169,16 @@ export function JourneysSheet({ journeys, initialJourneyId, data, onClose, onSho
               onShowOnMap={() => { onShowOnMap(journey.id) }}
               onRemove={() => { onRemove(journey.id) }}
               readOnly={readOnly}
+              {...(trips
+                ? {
+                    trip: {
+                      options: trips.options,
+                      onSet: (tripId: string | null) => { trips.onSet(journey.id, tripId) },
+                      onNew: (name: string) => { trips.onNew(journey.id, name) },
+                      onOpen: trips.onOpen,
+                    },
+                  }
+                : {})}
             />
           </div>
         )}

@@ -49,10 +49,42 @@ export interface Journey {
       for a journey that runs more than one night. Meaningless on its own —
       only read together with `arrivalTime`. */
   arrivalDayOffset: number
+  /**
+   * The trip this journey is part of, or null. One journey, at most one trip
+   * (docs/features/trips/prd.md). A trip id that no longer resolves to a trip
+   * reads as null, not as an error — the same "stored data is not trusted
+   * input" rule `isJourney` follows.
+   */
+  tripId: string | null
 }
 
 /** What the add-journey form collects. */
 export type JourneyDraft = Omit<Journey, 'id' | 'distanceKm'>
+
+/**
+ * A named group of journeys — "Himachal trip" holds the four trains that got
+ * you there and back.
+ *
+ * Only what the person typed is stored. Dates, kilometres, states and the
+ * journey count are all derived from the journeys that point at it, for the
+ * same reason stats are never stored: a stored copy of a derived number is a
+ * number that will one day disagree with what it summarises.
+ *
+ * A trip can have no journeys. It is made before the travel as often as
+ * after it — "Himachal trip" exists on the day it is planned, and the legs
+ * join it as they are logged — so empty is a real state, not a leftover.
+ */
+export interface Trip {
+  /** uuid, minted on the device like journey ids. */
+  id: string
+  /** The person's words. Never checked against the states its journeys
+      cross: a Himachal trip by rail may not touch Himachal at all. */
+  name: string
+  note: string | null
+  /** ISO timestamp. The only date a trip with no journeys has, and what the
+      add form's "made recently" preselect reads. */
+  createdAt: string
+}
 
 export interface Stats {
   journeyCount: number

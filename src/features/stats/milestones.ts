@@ -90,7 +90,7 @@ if (import.meta.env.DEV) {
   const j = (over: Partial<Journey>): Journey => ({
     id: 'x', fromCode: 'A', toCode: 'B', travelledOn: '2026-01-01',
     trainNumber: null, note: null, distanceKm: 0,
-    departureTime: null, arrivalTime: null, arrivalDayOffset: 0,
+    departureTime: null, arrivalTime: null, arrivalDayOffset: 0, tripId: null,
     ...over,
   })
   const empty = evaluateMilestones({ km: 0, stations: 0, states: 0, journeys: [] })

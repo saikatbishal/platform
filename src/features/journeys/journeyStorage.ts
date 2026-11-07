@@ -49,7 +49,10 @@ export function isJourney(x: unknown): x is Journey {
     // and read() below fills in the honest default before it goes anywhere.
     (j['departureTime'] === undefined || j['departureTime'] === null || typeof j['departureTime'] === 'string') &&
     (j['arrivalTime'] === undefined || j['arrivalTime'] === null || typeof j['arrivalTime'] === 'string') &&
-    (j['arrivalDayOffset'] === undefined || typeof j['arrivalDayOffset'] === 'number')
+    (j['arrivalDayOffset'] === undefined || typeof j['arrivalDayOffset'] === 'number') &&
+    // Same arrangement for trips: every journey stored before trips existed
+    // has no key at all, and is simply in no trip.
+    (j['tripId'] === undefined || j['tripId'] === null || typeof j['tripId'] === 'string')
   )
 }
 
@@ -68,6 +71,7 @@ export function read(key: string): Journey[] {
       departureTime: j.departureTime ?? null,
       arrivalTime: j.arrivalTime ?? null,
       arrivalDayOffset: j.arrivalDayOffset ?? 0,
+      tripId: j.tripId ?? null,
     }))
   } catch {
     // Private browsing, storage switched off, or corrupt JSON. Starting empty
@@ -167,6 +171,23 @@ export function addPending(userId: string, journey: Journey): void {
   const key = pendingKeyFor(userId)
   const rows = read(key)
   if (!rows.some((j) => j.id === journey.id)) write(key, [...rows, journey])
+}
+
+/**
+ * Move unsent journeys into (or out of) a trip without sending anything.
+ *
+ * A journey still in the pending log has not reached the server, so the
+ * insert that eventually carries it must carry its trip too — rewriting the
+ * logged copy is the whole update. Ids not in the log are left alone; the
+ * caller sends those as an update instead.
+ */
+export function setPendingTrip(userId: string, ids: Iterable<string>, tripId: string | null): void {
+  const these = new Set(ids)
+  if (these.size === 0) return
+  const key = pendingKeyFor(userId)
+  const rows = read(key)
+  if (!rows.some((j) => these.has(j.id))) return
+  write(key, rows.map((j) => (these.has(j.id) ? { ...j, tripId } : j)))
 }
 
 export function dropPending(userId: string, ids: Iterable<string>): void {

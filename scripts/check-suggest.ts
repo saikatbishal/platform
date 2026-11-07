@@ -33,6 +33,8 @@ const j = (fromCode: string, toCode: string, ago = 10): J => ({
   departureTime: null,
   arrivalTime: null,
   arrivalDayOffset: 0,
+  // Journeys gained a trip on main; none of these cases is about trips.
+  tripId: null,
 })
 
 // ---- nothing to go on -------------------------------------------------------
