@@ -70,6 +70,7 @@
   --color-route-halo: var(--route-halo);
   --color-route-planned: var(--route-planned);
   --color-route-idle: var(--route-idle);
+  --color-route-lens: var(--route-lens);
   --color-station-seen: var(--station-seen);
   --color-station-new: var(--station-new);
   --color-you-are-here: var(--you-are-here);
